@@ -85,12 +85,21 @@ function doGet(e) {
 
     const rows    = sheet.getDataRange().getValues();
     const headers = rows[0];
+    const tz      = Session.getScriptTimeZone();
     const data    = rows.slice(1).map(row => {
       const obj = {};
       headers.forEach((h, i) => {
         let v = row[i];
-        // Serialise Date objects to ISO date string
-        if (v instanceof Date) v = Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        if (v instanceof Date) {
+          // Time columns are stored by Sheets as Date objects anchored to 1899-12-30
+          if (h === 'Start Time' || h === 'End Time') {
+            v = Utilities.formatDate(v, tz, 'HH:mm');
+          } else if (h === 'Timestamp') {
+            v = Utilities.formatDate(v, tz, 'yyyy-MM-dd HH:mm:ss');
+          } else {
+            v = Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+          }
+        }
         obj[h] = (v === null || v === undefined) ? '' : v;
       });
       return obj;
