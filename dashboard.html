@@ -209,7 +209,6 @@
               <label for="salDriver">Filter by Driver</label>
               <select id="salDriver">
                 <option value="">All Drivers</option>
-                <script>CONFIG.DRIVERS.forEach(d=>{document.write('<option>'+d+'</option>')})</script>
               </select>
             </div>
             <button class="btn btn-outline" onclick="renderSalaryBreakdown(document.getElementById('salMonth').value)">Apply</button>

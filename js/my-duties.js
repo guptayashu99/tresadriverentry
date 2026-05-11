@@ -3,9 +3,17 @@
 let myDuties = [];
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Populate driver dropdown
+  const picker = document.getElementById('driverPicker');
+  CONFIG.DRIVERS.forEach(d => {
+    const o = document.createElement('option');
+    o.value = o.textContent = d;
+    picker.appendChild(o);
+  });
+
   const saved = localStorage.getItem('selectedDriver');
   if (saved && CONFIG.DRIVERS.includes(saved)) {
-    document.getElementById('driverPicker').value = saved;
+    picker.value = saved;
     loadMyDuties(saved);
   }
 

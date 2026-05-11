@@ -40,9 +40,10 @@ function initDash() {
   }
 
   // Populate filter dropdowns
-  populateFilter('fDriver',  CONFIG.DRIVERS,     'All Drivers');
-  populateFilter('fVendor',  CONFIG.VENDORS,     'All Vendors');
-  populateFilter('fType',    CONFIG.DUTY_TYPES,  'All Types');
+  populateFilter('fDriver',   CONFIG.DRIVERS,    'All Drivers');
+  populateFilter('fVendor',   CONFIG.VENDORS,    'All Vendors');
+  populateFilter('fType',     CONFIG.DUTY_TYPES, 'All Types');
+  populateFilter('salDriver', CONFIG.DRIVERS,    'All Drivers');
 
   // Default date range = current month
   const now = new Date();
