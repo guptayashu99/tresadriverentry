@@ -76,12 +76,17 @@ async function loadData() {
   setTableLoading(true);
   try {
     const res  = await fetch(CONFIG.APPS_SCRIPT_URL);
-    const json = await res.json();
+    const text = await res.text();
+    let json;
+    try { json = JSON.parse(text); }
+    catch { throw new Error('Response was not JSON. Got: ' + text.slice(0, 200)); }
     allDuties  = json.success ? (json.data || []) : [];
+    if (!json.success) console.error('Apps Script error:', json.error);
     applyFilters();
-  } catch {
+  } catch (err) {
+    console.error('Dashboard load error:', err);
     document.getElementById('dutiesBody').innerHTML =
-      '<tr><td colspan="11" class="empty-cell">❌ Could not load data. Check your API URL.</td></tr>';
+      `<tr><td colspan="11" class="empty-cell">❌ Could not load data: ${err.message}<br><small>Check browser console (F12) for details.</small></td></tr>`;
   }
 }
 
