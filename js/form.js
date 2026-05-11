@@ -165,7 +165,7 @@ async function handleSubmit(e) {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     });
-    showSuccess();
+    showSuccess(payload);
   } catch {
     document.getElementById('errMsg').style.display = 'block';
     setTimeout(() => document.getElementById('errMsg').style.display = 'none', 5000);
@@ -180,7 +180,29 @@ function setLoading(on) {
   document.getElementById('btnText').textContent = on ? 'Submitting…' : 'Submit Duty';
 }
 
-function showSuccess() {
+function showSuccess(payload) {
+  const a = calcDutyAllowance(payload);
+
+  let rows = '';
+  if (payload.dutyType === 'Outstation') {
+    rows += `<div class="sum-row"><span>Outstation (${a.outstationDays} day${a.outstationDays > 1 ? 's' : ''})</span><span>${fmtINR(a.outstationAllowance)}</span></div>`;
+    if (a.outstationDays === 2) rows += `<div class="sum-note">↳ Duty extended ≥30 min past midnight</div>`;
+  } else {
+    rows += `<div class="sum-row"><span>Overtime (${a.overtimeHours.toFixed(2)} h × ₹100)</span><span>${fmtINR(a.overtimeAmount)}</span></div>`;
+  }
+  if (a.isSunday) {
+    rows += `<div class="sum-row"><span>Sunday Bonus</span><span>${fmtINR(a.sundayBonus)}</span></div>`;
+  }
+
+  const allowanceBlock = a.totalAllowance > 0
+    ? `<div class="success-allowance">
+        <div class="sum-label">Your Allowance for This Duty</div>
+        ${rows}
+        <div class="sum-total"><span>Total</span><span>${fmtINR(a.totalAllowance)}</span></div>
+       </div>`
+    : `<div class="success-allowance"><div class="sum-label">No overtime for this duty</div></div>`;
+
+  document.getElementById('successAllowance').innerHTML = allowanceBlock;
   document.getElementById('dutyForm').style.display = 'none';
   document.getElementById('successBox').style.display = 'block';
 }

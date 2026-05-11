@@ -278,6 +278,30 @@ tr:hover td { background: #fafafa; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .empty-icon { font-size: 40px; margin-bottom: 10px; }
 
+/* ── Success allowance summary ───────────────────────────────────── */
+.success-allowance {
+  background: var(--success-light); border: 1px solid #86efac;
+  border-radius: var(--r-lg); padding: 16px 20px;
+  max-width: 340px; margin: 0 auto; text-align: left;
+}
+.sum-label {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--success); margin-bottom: 10px;
+}
+.sum-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 14px; padding: 4px 0; border-bottom: 1px solid #bbf7d0;
+}
+.sum-row:last-of-type { border-bottom: none; }
+.sum-note {
+  font-size: 12px; color: var(--text-muted); padding: 2px 0 6px;
+}
+.sum-total {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 16px; font-weight: 700; color: var(--success);
+  margin-top: 8px; padding-top: 8px; border-top: 2px solid #86efac;
+}
+
 /* ── Password screen ─────────────────────────────────────────────── */
 .pw-screen {
   min-height: 100vh; display: flex;
