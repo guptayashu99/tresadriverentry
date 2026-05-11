@@ -128,11 +128,6 @@ function getOrCreateSheet_() {
   return sheet;
 }
 
-function toMins_(timeStr) {
-  const parts = timeStr.split(':');
-  return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
-}
-
 function jsonResp_(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
