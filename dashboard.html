@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tresa – Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ── Password screen ──────────────────────────────────────────── -->
+<div id="pwScreen" class="pw-screen" style="display:none">
+  <div class="pw-card">
+    <div style="font-size:44px;margin-bottom:10px">🔐</div>
+    <h2>Owner Dashboard</h2>
+    <p>Enter the dashboard password to continue</p>
+    <form id="pwForm">
+      <div class="field" style="margin-bottom:10px;text-align:left">
+        <label for="pwInput">Password</label>
+        <input type="password" id="pwInput" placeholder="Password" autofocus>
+      </div>
+      <div id="pwErr" class="alert alert-error" style="display:none;margin-bottom:10px;font-size:13px">
+        Incorrect password
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg">Enter Dashboard</button>
+    </form>
+  </div>
+</div>
+
+<!-- ── Dashboard ────────────────────────────────────────────────── -->
+<div id="dashMain">
+
+  <header class="app-header">
+    <div class="container-wide">
+      <div class="header-inner">
+        <a class="brand" href="index.html">
+          <span class="brand-icon">🚗</span> Tresa
+        </a>
+        <nav class="nav">
+          <a href="index.html"     class="nav-link">Entry Form</a>
+          <a href="dashboard.html" class="nav-link active">Dashboard</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="container-wide">
+
+      <!-- Page header -->
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div>
+          <h1>Dashboard</h1>
+          <p>Track duties, expenses, driver allowances and vendor payments</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline" onclick="refreshData()">↻ Refresh</button>
+          <button class="btn btn-outline" onclick="exportCSV()">⬇ Export CSV</button>
+        </div>
+      </div>
+
+      <!-- Stats cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Duties</div>
+          <div class="stat-value" id="statDuties">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Km Driven</div>
+          <div class="stat-value" id="statKm">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Expenses</div>
+          <div class="stat-value" id="statExp">—</div>
+          <div class="stat-sub">Parking, toll, taxes, misc</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Fuel Cost</div>
+          <div class="stat-value" id="statFuel">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">OT / Allowances</div>
+          <div class="stat-value" id="statAlw">—</div>
+          <div class="stat-sub">OT + Outstation + Sunday</div>
+        </div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <div class="filter-field">
+          <label>Date From</label>
+          <input type="date" id="fFrom">
+        </div>
+        <div class="filter-field">
+          <label>Date To</label>
+          <input type="date" id="fTo">
+        </div>
+        <div class="filter-field">
+          <label>Driver</label>
+          <select id="fDriver"><option value="">All Drivers</option></select>
+        </div>
+        <div class="filter-field">
+          <label>Vendor</label>
+          <select id="fVendor"><option value="">All Vendors</option></select>
+        </div>
+        <div class="filter-field">
+          <label>Duty Type</label>
+          <select id="fType">
+            <option value="">All Types</option>
+            <option value="Hourly Rental">Hourly Rental</option>
+            <option value="Airport Transfer">Airport Transfer</option>
+            <option value="Outstation">Outstation</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" data-tab="tabOverview"  onclick="switchTab('tabOverview')">Overview</button>
+        <button class="tab"        data-tab="tabSalary"    onclick="switchTab('tabSalary')">Salary Report</button>
+        <button class="tab"        data-tab="tabVendor"    onclick="switchTab('tabVendor')">Vendor Report</button>
+      </div>
+
+      <!-- ── Tab: Overview ─────────────────────────────────────── -->
+      <div class="tab-panel active" id="tabOverview">
+
+        <h3 style="font-size:14px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px">Driver Summary</h3>
+        <div class="driver-cards" id="driverCards">
+          <div class="loading-cell" style="grid-column:1/-1"><div class="spinner"></div>Loading…</div>
+        </div>
+
+        <div class="table-wrap">
+          <div class="table-head">
+            <div>
+              <div class="table-title">All Duties</div>
+              <div class="table-count" id="dutiesCount"></div>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Driver</th>
+                  <th>Vehicle</th>
+                  <th>Vendor</th>
+                  <th>Duty No.</th>
+                  <th>Type</th>
+                  <th>Km</th>
+                  <th>Duration</th>
+                  <th>Expenses</th>
+                  <th>Fuel</th>
+                  <th>Allowance</th>
+                </tr>
+              </thead>
+              <tbody id="dutiesBody">
+                <tr><td colspan="11" class="loading-cell"><div class="spinner"></div>Loading duties…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Tab: Salary Report ─────────────────────────────────── -->
+      <div class="tab-panel" id="tabSalary">
+        <div class="card" style="margin-bottom:18px">
+          <div class="section-title"><span class="section-icon">💼</span> Monthly Salary Calculator</div>
+
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px">
+            <div class="field" style="min-width:160px">
+              <label for="salMonth">Month</label>
+              <input type="month" id="salMonth">
+            </div>
+            <button class="btn btn-primary" onclick="calcSalaryReport()">Calculate Salaries</button>
+          </div>
+
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;background:var(--primary-light);padding:10px 14px;border-radius:var(--r)">
+            <strong>Salary Rules:</strong> Basic ₹26,000 · OT ₹100/hr (hours outside 08:00–20:00) · Sunday +₹1,000 · Outstation ₹500/day (+₹500 if duty extends ≥30 min past midnight)
+          </div>
+
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Driver</th>
+                  <th style="text-align:center">Duties</th>
+                  <th>Basic</th>
+                  <th>OT Pay</th>
+                  <th>Outstation</th>
+                  <th>Sunday Bonus</th>
+                  <th>Gross Salary</th>
+                </tr>
+              </thead>
+              <tbody id="salBody">
+                <tr><td colspan="7" class="empty-cell">Select a month and click Calculate</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Per-duty breakdown -->
+        <div class="card">
+          <div class="section-title"><span class="section-icon">📊</span> Per-Duty Breakdown</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+            <div class="field" style="min-width:180px">
+              <label for="salDriver">Filter by Driver</label>
+              <select id="salDriver">
+                <option value="">All Drivers</option>
+                <script>CONFIG.DRIVERS.forEach(d=>{document.write('<option>'+d+'</option>')})</script>
+              </select>
+            </div>
+            <button class="btn btn-outline" onclick="renderSalaryBreakdown(document.getElementById('salMonth').value)">Apply</button>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Driver</th>
+                  <th>Type</th>
+                  <th>Time</th>
+                  <th>OT Hours</th>
+                  <th>OT Pay</th>
+                  <th>Outstation</th>
+                  <th>Sunday</th>
+                </tr>
+              </thead>
+              <tbody id="salDetailBody">
+                <tr><td colspan="8" class="empty-cell">Calculate salary first</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Tab: Vendor Report ─────────────────────────────────── -->
+      <div class="tab-panel" id="tabVendor">
+        <div class="card" style="margin-bottom:18px">
+          <div class="section-title"><span class="section-icon">🏢</span> Vendor Duty Summary</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px">
+            <div class="field" style="min-width:150px">
+              <label for="vFrom">Date From</label>
+              <input type="date" id="vFrom">
+            </div>
+            <div class="field" style="min-width:150px">
+              <label for="vTo">Date To</label>
+              <input type="date" id="vTo">
+            </div>
+            <button class="btn btn-primary" onclick="renderVendorReport()">Generate Report</button>
+          </div>
+          <div style="font-size:13px;color:var(--text-muted);background:var(--warning-light);padding:10px 14px;border-radius:var(--r);margin-bottom:14px">
+            Use the Vendor Duty Numbers below to cross-check payment statements from vendors against duties logged.
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Vendor</th>
+                  <th style="text-align:center">Duties</th>
+                  <th>Breakdown by Type</th>
+                  <th>Total Km</th>
+                  <th>Duty Numbers</th>
+                </tr>
+              </thead>
+              <tbody id="vendorBody">
+                <tr><td colspan="5" class="empty-cell">Select a date range and click Generate Report</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /container-wide -->
+  </main>
+</div><!-- /dashMain -->
+
+<script src="js/config.js"></script>
+<script src="js/salary.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>

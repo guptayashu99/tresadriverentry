@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tresa – Duty Entry</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="container">
+    <div class="header-inner">
+      <a class="brand" href="index.html">
+        <span class="brand-icon">🚗</span> Tresa
+      </a>
+      <nav class="nav">
+        <a href="index.html"     class="nav-link active">Entry Form</a>
+        <a href="dashboard.html" class="nav-link">Dashboard</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main class="main">
+  <div class="container">
+
+    <div class="page-header">
+      <h1>Duty Entry</h1>
+      <p>Fill in details after completing your duty</p>
+    </div>
+
+    <!-- ── Entry Form ─────────────────────────────────────────── -->
+    <form id="dutyForm" class="form-stack" autocomplete="off">
+
+      <!-- Driver Details -->
+      <div class="card">
+        <div class="section-title"><span class="section-icon">👤</span> Driver Details</div>
+        <div class="grid">
+          <div class="field">
+            <label for="driverName">Driver Name <span class="req">*</span></label>
+            <select id="driverName" name="driverName" required>
+              <option value="">Select driver…</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="vehicleNumber">Vehicle Number <span class="req">*</span></label>
+            <select id="vehicleNumber" name="vehicleNumber" required>
+              <option value="">Select vehicle…</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="dutyDate">Duty Date <span class="req">*</span></label>
+            <input type="date" id="dutyDate" name="dutyDate" required>
+          </div>
+        </div>
+      </div>
+
+      <!-- Duty Details -->
+      <div class="card">
+        <div class="section-title"><span class="section-icon">📋</span> Duty Details</div>
+        <div class="grid">
+          <div class="field">
+            <label for="vendor">Vendor <span class="req">*</span></label>
+            <select id="vendor" name="vendor" required>
+              <option value="">Select vendor…</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="vendorDutyNumber">Vendor Duty No. <span class="req">*</span></label>
+            <input type="text" id="vendorDutyNumber" name="vendorDutyNumber" placeholder="e.g. WTI-20240715" required>
+          </div>
+          <div class="field">
+            <label for="dutyType">Duty Type <span class="req">*</span></label>
+            <select id="dutyType" name="dutyType" required>
+              <option value="">Select type…</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-2" style="margin-top:14px">
+          <div class="field">
+            <label for="startKm">Start Km <span class="req">*</span></label>
+            <input type="number" id="startKm" name="startKm" placeholder="0" min="0" required>
+          </div>
+          <div class="field">
+            <label for="startTime">Start Time <span class="req">*</span></label>
+            <input type="time" id="startTime" name="startTime" required>
+          </div>
+          <div class="field">
+            <label for="endKm">End Km <span class="req">*</span></label>
+            <input type="number" id="endKm" name="endKm" placeholder="0" min="0" required>
+          </div>
+          <div class="field">
+            <label for="endTime">End Time <span class="req">*</span></label>
+            <input type="time" id="endTime" name="endTime" required>
+          </div>
+        </div>
+
+        <!-- Live km + duration -->
+        <div class="info-box blue" id="kmSummary" style="display:none">
+          <div class="info-stat">
+            <span class="info-label">Total Km</span>
+            <span class="info-value" id="kmTotal">—</span>
+          </div>
+          <div class="info-stat">
+            <span class="info-label">Duration</span>
+            <span class="info-value" id="kmDuration">—</span>
+          </div>
+        </div>
+
+        <!-- Live OT / allowance preview -->
+        <div class="ot-preview" id="otPreview" style="display:none"></div>
+      </div>
+
+      <!-- Expenses -->
+      <div class="card">
+        <div class="section-title"><span class="section-icon">💰</span> Expenses</div>
+        <div class="grid">
+          <div class="field">
+            <label for="parking">Parking (₹)</label>
+            <input type="number" id="parking" name="parking" placeholder="0" min="0" value="0">
+          </div>
+          <div class="field">
+            <label for="mcd">MCD (₹)</label>
+            <input type="number" id="mcd" name="mcd" placeholder="0" min="0" value="0">
+          </div>
+          <div class="field">
+            <label for="toll">Toll (₹)</label>
+            <input type="number" id="toll" name="toll" placeholder="0" min="0" value="0">
+          </div>
+          <div class="field">
+            <label for="stateTax">State Tax (₹)</label>
+            <input type="number" id="stateTax" name="stateTax" placeholder="0" min="0" value="0">
+          </div>
+          <div class="field">
+            <label for="miscellaneous">Miscellaneous (₹)</label>
+            <input type="number" id="miscellaneous" name="miscellaneous" placeholder="0" min="0" value="0">
+          </div>
+        </div>
+        <div class="exp-total">Total Expenses: <strong id="expTotal">₹0</strong></div>
+      </div>
+
+      <!-- Fuel -->
+      <div class="card">
+        <div class="section-title"><span class="section-icon">⛽</span> Fuel</div>
+        <div class="toggle-row">
+          <label>Did you fill fuel?</label>
+          <div class="toggle-group">
+            <button type="button" id="btnFuelNo"  class="toggle-btn" onclick="setFuel(false)">No</button>
+            <button type="button" id="btnFuelYes" class="toggle-btn" onclick="setFuel(true)">Yes</button>
+          </div>
+        </div>
+
+        <div class="grid grid-3" id="fuelDetails" style="display:none; margin-top:16px">
+          <div class="field">
+            <label for="fuelAmount">Amount (₹) <span class="req">*</span></label>
+            <input type="number" id="fuelAmount" name="fuelAmount" placeholder="0" min="0">
+          </div>
+          <div class="field">
+            <label for="fuelLitres">Litres <span class="req">*</span></label>
+            <input type="number" id="fuelLitres" name="fuelLitres" placeholder="0.00" min="0" step="0.01">
+          </div>
+          <div class="field">
+            <label for="fuelOdometer">Odometer Reading <span class="req">*</span></label>
+            <input type="number" id="fuelOdometer" name="fuelOdometer" placeholder="0" min="0">
+          </div>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div>
+        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+          <span id="btnText">Submit Duty</span>
+        </button>
+        <div id="errMsg" class="alert alert-error" style="display:none">
+          ❌ Submission failed. Please check your connection and try again.
+        </div>
+      </div>
+
+    </form>
+
+    <!-- Success state -->
+    <div id="successBox" style="display:none; text-align:center; padding:40px 0">
+      <div style="font-size:64px">✅</div>
+      <h2 style="margin:12px 0 6px; font-size:22px">Duty Submitted!</h2>
+      <p style="color:var(--text-muted); margin-bottom:24px">Your duty has been recorded successfully.</p>
+      <button class="btn btn-primary" onclick="submitAnother()">Submit Another Duty</button>
+    </div>
+
+  </div>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/salary.js"></script>
+<script src="js/form.js"></script>
+</body>
+</html>
