@@ -1,6 +1,6 @@
 const CONFIG = {
   // Paste your Google Apps Script Web App URL here after deployment
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwoYJY-6VgVH2E5z58wNclraGDHsyNbBrUraX9laQ10Uj9CNX_AaQ63aVtBkbztwvXUOQ/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwCS6-x2M41wcN9hZRhFYYcDAzBGs9TWStkBv7x3GuUkSWTtCljtya70_DMGP3PhmRa3Q/exec',
 
   // Change this before going live
   DASHBOARD_PASSWORD: 'tresa2024',
