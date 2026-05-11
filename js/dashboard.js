@@ -252,7 +252,7 @@ function renderSalaryBreakdown(ym) {
       <td>${fmtDate(d['Duty Date'])}${dayLabel}</td>
       <td>${d['Driver Name'] || '—'}</td>
       <td><span class="badge badge-blue">${d['Duty Type'] || '—'}</span></td>
-      <td>${d['Start Time'] || '—'} – ${d['End Time'] || '—'}</td>
+      <td>${fmtTimeRange(d)}</td>
       <td>${a.overtimeHours > 0 ? a.overtimeHours.toFixed(2) + ' h' : '—'}</td>
       <td>${a.overtimeAmount ? fmtINR(a.overtimeAmount) : '—'}</td>
       <td>${a.outstationAllowance ? fmtINR(a.outstationAllowance) + (a.outstationDays===2?' (×2)':'') : '—'}</td>
@@ -332,6 +332,23 @@ function fmtDate(s) {
   try {
     return new Date(s+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
   } catch { return s; }
+}
+
+// Shows "HH:MM – HH:MM" for same-day, or "HH:MM (date) – HH:MM (date)" for overnight
+function fmtTimeRange(d) {
+  const st = d['Start Time'] || '';
+  const et = d['End Time']   || '';
+  const sd = d['Start Date'] || d['Duty Date'] || '';
+  const ed = d['End Date']   || d['Duty Date'] || '';
+  if (!st && !et) return '—';
+  if (sd && ed && sd !== ed) {
+    const shortDate = s => {
+      try { return new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }); }
+      catch { return s; }
+    };
+    return `${st} <span style="font-size:11px;color:var(--text-muted)">${shortDate(sd)}</span> – ${et} <span style="font-size:11px;color:var(--text-muted)">${shortDate(ed)}</span>`;
+  }
+  return `${st || '—'} – ${et || '—'}`;
 }
 
 function fmtDuration2(mins) {

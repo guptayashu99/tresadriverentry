@@ -21,47 +21,59 @@ function _toMins(timeStr) {
   return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
 }
 
-// Returns overtime hours outside 08:00–20:00 for a single duty.
-// Handles overnight shifts correctly.
-// Example: start=15:00 end=01:30 → OT = 20:00→midnight + midnight→01:30 = 5.5 h
-function calcOvertimeHours(startTime, endTime) {
-  const s = _toMins(startTime);
-  const e = _toMins(endTime);
+function _dayDiff(dateA, dateB) {
+  if (!dateA || !dateB) return 0;
+  return Math.round((new Date(dateB + 'T00:00:00') - new Date(dateA + 'T00:00:00')) / 86400000);
+}
+
+// Returns overtime hours outside 08:00–20:00.
+// Correctly handles same-day, overnight, and multi-day duties.
+// Example: startDate=2024-01-15 startTime=15:00 endDate=2024-01-16 endTime=01:30
+//          → OT = 20:00→midnight + midnight→01:30 = 5.5 h
+function calcOvertimeHours(startDate, startTime, endDate, endTime) {
+  const s  = _toMins(startTime);
+  const e  = _toMins(endTime);
   if (s < 0 || e < 0) return 0;
 
-  const WS = SALARY.WORK_START; // 480
-  const WE = SALARY.WORK_END;   // 1200
+  const WS  = SALARY.WORK_START; // 480
+  const WE  = SALARY.WORK_END;   // 1200
   const DAY = 1440;
+  const dd  = _dayDiff(startDate, endDate);
 
-  const isOvernight = e < s;
-  let otMins = 0;
-
-  if (!isOvernight) {
-    // Same-day duty
-    if (s < WS) otMins += Math.min(e, WS) - s;   // early morning OT
-    if (e > WE) otMins += e - Math.max(s, WE);   // evening OT
-  } else {
-    // Overnight: split into [s → midnight] and [midnight → e]
-
-    // Day portion OT
-    if (s < WS) otMins += WS - s;               // pre-08:00 at start (rare)
-    otMins += DAY - Math.max(s, WE);            // post-20:00 until midnight
-
-    // Night portion OT (midnight → e)
-    otMins += Math.min(e, WS);                  // from midnight to min(e, 08:00)
-    if (e > WE) otMins += e - WE;              // past 20:00 next day (very long duty)
+  if (dd === 0) {
+    // Same day
+    let ot = 0;
+    if (s < WS) ot += Math.min(e, WS) - s;
+    if (e > WE) ot += e - Math.max(s, WE);
+    return Math.max(0, ot) / 60;
   }
 
-  return Math.max(0, otMins) / 60;
+  // Multi-day: day-1 portion + full middle days + last day portion
+  let ot = 0;
+
+  // First day (s → midnight)
+  if (s < WS) ot += WS - s;           // pre-08:00 (rare)
+  ot += DAY - Math.max(s, WE);        // post-20:00 until midnight
+
+  // Full calendar days in between (each day: midnight→08:00 + 20:00→midnight = 720 OT mins)
+  if (dd > 1) ot += (dd - 1) * (WS + (DAY - WE));
+
+  // Last day (midnight → e)
+  ot += Math.min(e, WS);              // midnight → min(e, 08:00)
+  if (e > WE) ot += e - WE;          // past 20:00 on last day
+
+  return Math.max(0, ot) / 60;
 }
 
 // Calculate all allowances for a single duty record.
-// Accepts both raw form data (camelCase) and sheet row data (header-keyed).
+// Accepts both raw form payload (camelCase) and sheet row data (header-keyed).
 function calcDutyAllowance(duty) {
   const startTime = duty['Start Time'] || duty.startTime || '';
   const endTime   = duty['End Time']   || duty.endTime   || '';
+  const startDate = duty['Start Date'] || duty.startDate || duty['Duty Date'] || duty.dutyDate || '';
+  const endDate   = duty['End Date']   || duty.endDate   || duty['Duty Date'] || duty.dutyDate || '';
   const dutyType  = duty['Duty Type']  || duty.dutyType  || '';
-  const dutyDate  = duty['Duty Date']  || duty.dutyDate  || '';
+  const dutyDate  = duty['Duty Date']  || duty.dutyDate  || startDate;
 
   const isSunday = dutyDate
     ? new Date(dutyDate + 'T00:00:00').getDay() === 0
@@ -74,16 +86,20 @@ function calcDutyAllowance(duty) {
   let outstationAllowance = 0;
 
   if (dutyType === 'Outstation') {
-    const s = _toMins(startTime);
-    const e = _toMins(endTime);
-    const isOvernight = s >= 0 && e >= 0 && e < s;
-    outstationDays = 1;
-    if (isOvernight && e >= SALARY.OUTSTATION_MIDNIGHT_THRESHOLD) {
-      outstationDays = 2; // worked 30+ min past midnight → next-day allowance
-    }
+    const dd    = _dayDiff(startDate, endDate);
+    const eMins = _toMins(endTime);
+    // Number of outstation days:
+    //   same day                         → 1
+    //   next day, end < 30 min past 00:00 → 1 (trivial midnight cross)
+    //   next day, end ≥ 30 min past 00:00 → 2
+    //   two days later                    → 3, etc.
+    outstationDays = dd > 0
+      ? dd + (eMins >= SALARY.OUTSTATION_MIDNIGHT_THRESHOLD ? 1 : 0)
+      : 1;
+    outstationDays = Math.max(1, outstationDays);
     outstationAllowance = outstationDays * SALARY.OUTSTATION_DAILY;
   } else {
-    overtimeHours = calcOvertimeHours(startTime, endTime);
+    overtimeHours  = calcOvertimeHours(startDate, startTime, endDate, endTime);
     overtimeAmount = Math.round(overtimeHours * SALARY.OT_RATE);
   }
 

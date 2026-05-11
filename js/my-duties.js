@@ -96,7 +96,7 @@ function renderTable(duties) {
       <td>${d['Vendor'] || '—'}</td>
       <td style="font-size:12px;color:var(--text-muted)">${d['Vendor Duty Number'] || '—'}</td>
       <td><span class="badge badge-blue">${d['Duty Type'] || '—'}</span></td>
-      <td>${d['Start Time'] || '—'} – ${d['End Time'] || '—'}</td>
+      <td>${fmtTimeRange(d)}</td>
       <td>${d['Total Km'] || 0} km</td>
       <td>${exp ? fmtINR(exp) : '—'}</td>
       <td>
@@ -108,6 +108,22 @@ function renderTable(duties) {
       </td>
     </tr>`;
   }).join('');
+}
+
+function fmtTimeRange(d) {
+  const st = d['Start Time'] || '';
+  const et = d['End Time']   || '';
+  const sd = d['Start Date'] || d['Duty Date'] || '';
+  const ed = d['End Date']   || d['Duty Date'] || '';
+  if (!st && !et) return '—';
+  if (sd && ed && sd !== ed) {
+    const shortDate = s => {
+      try { return new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }); }
+      catch { return s; }
+    };
+    return `${st} (${shortDate(sd)}) – ${et} (${shortDate(ed)})`;
+  }
+  return `${st || '—'} – ${et || '—'}`;
 }
 
 function fmtDate(s) {

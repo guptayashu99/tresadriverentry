@@ -15,7 +15,7 @@ const SHEET_NAME = 'Duties';
 const HEADERS = [
   'Timestamp', 'Driver Name', 'Vehicle Number', 'Duty Date',
   'Vendor', 'Vendor Duty Number', 'Duty Type',
-  'Start Km', 'Start Time', 'End Km', 'End Time',
+  'Start Km', 'Start Date', 'Start Time', 'End Km', 'End Date', 'End Time',
   'Total Km', 'Duration (mins)',
   'Parking', 'MCD', 'Toll', 'State Tax', 'Miscellaneous', 'Total Expenses',
   'Filled Fuel', 'Fuel Amount', 'Fuel Litres', 'Fuel Odometer Reading'
@@ -34,10 +34,12 @@ function doPost(e) {
       .reduce((s, k) => s + (parseFloat(data[k]) || 0), 0);
 
     let durationMins = '';
-    if (data.startTime && data.endTime) {
-      const sm = toMins_(data.startTime);
-      const em = toMins_(data.endTime);
-      durationMins = em < sm ? (1440 - sm + em) : (em - sm);
+    const startDate = data.startDate || data.dutyDate || '';
+    const endDate   = data.endDate   || data.dutyDate || '';
+    if (startDate && data.startTime && endDate && data.endTime) {
+      const start = new Date(startDate + 'T' + data.startTime);
+      const end   = new Date(endDate   + 'T' + data.endTime);
+      durationMins = Math.round((end - start) / 60000);
     }
 
     sheet.appendRow([
@@ -48,9 +50,11 @@ function doPost(e) {
       data.vendor           || '',
       data.vendorDutyNumber || '',
       data.dutyType         || '',
-      parseFloat(data.startKm)  || 0,
+      parseFloat(data.startKm) || 0,
+      startDate,
       data.startTime        || '',
-      parseFloat(data.endKm)    || 0,
+      parseFloat(data.endKm)   || 0,
+      endDate,
       data.endTime          || '',
       totalKm,
       durationMins,

@@ -1,10 +1,13 @@
 /* Entry form logic — runs on index.html */
 
 let fuelFilled = false;
+let existingDuties = [];
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Default duty date = today
-  document.getElementById('dutyDate').value = todayStr();
+  // Default duty date = today, and set datetime defaults
+  const today = todayStr();
+  document.getElementById('dutyDate').value = today;
+  setDatetimeDefaults(today);
 
   // Populate dropdowns
   fill('driverName',    CONFIG.DRIVERS);
@@ -12,8 +15,14 @@ document.addEventListener('DOMContentLoaded', () => {
   fill('vendor',        CONFIG.VENDORS);
   fill('dutyType',      CONFIG.DUTY_TYPES);
 
-  // Live km / time summary
-  ['startKm','endKm','startTime','endTime'].forEach(id =>
+  // When duty date changes, update datetime defaults
+  document.getElementById('dutyDate').addEventListener('change', e => {
+    setDatetimeDefaults(e.target.value);
+    updateOTPreview();
+  });
+
+  // Live km / duration summary
+  ['startKm','endKm','startDatetime','endDatetime'].forEach(id =>
     document.getElementById(id).addEventListener('input', updateKmSummary)
   );
 
@@ -22,8 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById(id).addEventListener('input', updateExpTotal)
   );
 
-  // Live OT preview when time or type changes
-  ['startTime','endTime','dutyDate','dutyType'].forEach(id =>
+  // Live OT preview
+  ['startDatetime','endDatetime','dutyDate','dutyType'].forEach(id =>
     document.getElementById(id).addEventListener('change', updateOTPreview)
   );
 
@@ -35,6 +44,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Warn if not configured
   if (!CONFIG.APPS_SCRIPT_URL) showBanner();
+
+  // Pre-fetch existing duties silently for duplicate detection
+  if (CONFIG.APPS_SCRIPT_URL) {
+    fetch(CONFIG.APPS_SCRIPT_URL)
+      .then(r => r.json())
+      .then(j => { existingDuties = j.success ? (j.data || []) : []; })
+      .catch(() => {});
+  }
 });
 
 function fill(id, items) {
@@ -48,6 +65,22 @@ function fill(id, items) {
 
 function todayStr() {
   return new Date().toISOString().split('T')[0];
+}
+
+// Pre-fill start/end datetime to the duty date at 00:00 if not yet set
+function setDatetimeDefaults(date) {
+  if (!date) return;
+  const sd = document.getElementById('startDatetime');
+  const ed = document.getElementById('endDatetime');
+  if (!sd.value) sd.value = date + 'T00:00';
+  if (!ed.value) ed.value = date + 'T00:00';
+}
+
+// Split a datetime-local value into { date, time }
+function splitDT(val) {
+  if (!val) return { date: '', time: '' };
+  const [date, time] = val.split('T');
+  return { date, time };
 }
 
 // ── Fuel toggle ────────────────────────────────────────────────────
@@ -65,21 +98,22 @@ function setFuel(yes) {
 
 // ── Live km / duration summary ─────────────────────────────────────
 function updateKmSummary() {
-  const sk = +document.getElementById('startKm').value || 0;
-  const ek = +document.getElementById('endKm').value   || 0;
-  const st = document.getElementById('startTime').value;
-  const et = document.getElementById('endTime').value;
+  const sk  = +document.getElementById('startKm').value || 0;
+  const ek  = +document.getElementById('endKm').value   || 0;
+  const sdt = document.getElementById('startDatetime').value;
+  const edt = document.getElementById('endDatetime').value;
 
   const box = document.getElementById('kmSummary');
-  if (!sk && !ek && !st && !et) { box.style.display = 'none'; return; }
+  if (!sk && !ek && !sdt && !edt) { box.style.display = 'none'; return; }
   box.style.display = 'flex';
 
   document.getElementById('kmTotal').textContent = Math.max(0, ek - sk) + ' km';
 
-  if (st && et) {
-    const sm = toM(st), em = toM(et);
-    const dur = em < sm ? (1440 - sm + em) : (em - sm);
-    document.getElementById('kmDuration').textContent = fmtDuration(dur);
+  if (sdt && edt) {
+    const diffMs = new Date(edt) - new Date(sdt);
+    if (diffMs > 0) {
+      document.getElementById('kmDuration').textContent = fmtDuration(diffMs / 60000);
+    }
   }
 
   updateOTPreview();
@@ -94,21 +128,24 @@ function updateExpTotal() {
 
 // ── Live OT / allowance preview ────────────────────────────────────
 function updateOTPreview() {
-  const st    = document.getElementById('startTime').value;
-  const et    = document.getElementById('endTime').value;
-  const date  = document.getElementById('dutyDate').value;
+  const sdt   = document.getElementById('startDatetime').value;
+  const edt   = document.getElementById('endDatetime').value;
   const dtype = document.getElementById('dutyType').value;
   const box   = document.getElementById('otPreview');
 
-  if (!st || !et || !dtype) { box.style.display = 'none'; return; }
+  if (!sdt || !edt || !dtype) { box.style.display = 'none'; return; }
 
-  const a = calcDutyAllowance({ startTime: st, endTime: et, dutyType: dtype, dutyDate: date });
+  const { date: startDate, time: startTime } = splitDT(sdt);
+  const { date: endDate,   time: endTime   } = splitDT(edt);
+  const dutyDate = document.getElementById('dutyDate').value || startDate;
+
+  const a = calcDutyAllowance({ startDate, startTime, endDate, endTime, dutyType: dtype, dutyDate });
   box.style.display = 'block';
 
   let html = '';
   if (dtype === 'Outstation') {
     html += `<div>Outstation: <strong>${a.outstationDays} day${a.outstationDays > 1 ? 's' : ''}</strong> × ${fmtINR(SALARY.OUTSTATION_DAILY)} = <strong>${fmtINR(a.outstationAllowance)}</strong></div>`;
-    if (a.outstationDays === 2) html += `<div style="font-size:12px;color:var(--text-muted)">↳ Duty extends ≥30 min past midnight → next-day allowance</div>`;
+    if (a.outstationDays > 1) html += `<div style="font-size:12px;color:var(--text-muted)">↳ Duty extends ≥30 min past midnight</div>`;
   } else {
     html += `<div>Overtime: <strong>${a.overtimeHours.toFixed(2)} h</strong> × ${fmtINR(SALARY.OT_RATE)} = <strong>${fmtINR(a.overtimeAmount)}</strong></div>`;
   }
@@ -116,11 +153,8 @@ function updateOTPreview() {
     html += `<div>Sunday bonus: <strong>${fmtINR(SALARY.SUNDAY_BONUS)}</strong></div>`;
   }
   html += `<div class="ot-total">Total Allowance: ${fmtINR(a.totalAllowance)}</div>`;
-
   box.innerHTML = html;
 }
-
-function toM(t) { const [h,m] = t.split(':').map(Number); return h*60+m; }
 
 // ── Submit ─────────────────────────────────────────────────────────
 async function handleSubmit(e) {
@@ -136,6 +170,14 @@ async function handleSubmit(e) {
   const ek = +form.endKm.value;
   if (ek < sk) { alert('End Km must be ≥ Start Km'); return; }
 
+  const sdt = form.startDatetime.value;
+  const edt = form.endDatetime.value;
+  if (!sdt || !edt) { alert('Please enter start and end date/time.'); return; }
+  if (new Date(edt) <= new Date(sdt)) { alert('End date/time must be after start date/time.'); return; }
+
+  const { date: startDate, time: startTime } = splitDT(sdt);
+  const { date: endDate,   time: endTime   } = splitDT(edt);
+
   const payload = {
     driverName:       form.driverName.value,
     vehicleNumber:    form.vehicleNumber.value,
@@ -144,19 +186,38 @@ async function handleSubmit(e) {
     vendorDutyNumber: form.vendorDutyNumber.value,
     dutyType:         form.dutyType.value,
     startKm:          sk,
-    startTime:        form.startTime.value,
+    startDate, startTime,
     endKm:            ek,
-    endTime:          form.endTime.value,
-    parking:          +form.parking.value     || 0,
-    mcd:              +form.mcd.value         || 0,
-    toll:             +form.toll.value        || 0,
-    stateTax:         +form.stateTax.value    || 0,
+    endDate,   endTime,
+    parking:          +form.parking.value      || 0,
+    mcd:              +form.mcd.value          || 0,
+    toll:             +form.toll.value         || 0,
+    stateTax:         +form.stateTax.value     || 0,
     miscellaneous:    +form.miscellaneous.value || 0,
     filledFuel:       fuelFilled,
     fuelAmount:       fuelFilled ? (+form.fuelAmount.value   || 0) : null,
     fuelLitres:       fuelFilled ? (+form.fuelLitres.value   || 0) : null,
     fuelOdometer:     fuelFilled ? (+form.fuelOdometer.value || 0) : null
   };
+
+  // Duplicate check — same vehicle + overlapping datetime range
+  const conflict = existingDuties.find(d => {
+    if ((d['Vehicle Number'] || '') !== payload.vehicleNumber) return false;
+    const exSD = d['Start Date'] || d['Duty Date'] || '';
+    const exST = d['Start Time'] || '';
+    const exED = d['End Date']   || d['Duty Date'] || '';
+    const exET = d['End Time']   || '';
+    return timesOverlap(startDate, startTime, endDate, endTime, exSD, exST, exED, exET);
+  });
+  if (conflict) {
+    const proceed = confirm(
+      `⚠️ ${payload.vehicleNumber} already has a duty from ` +
+      `${conflict['Start Date'] || conflict['Duty Date']} ${conflict['Start Time']} → ` +
+      `${conflict['End Date']   || conflict['Duty Date']} ${conflict['End Time']}\n` +
+      `(${conflict['Driver Name']}, ${conflict['Vendor Duty Number']})\n\nSubmit anyway?`
+    );
+    if (!proceed) return;
+  }
 
   setLoading(true);
   try {
@@ -186,7 +247,7 @@ function showSuccess(payload) {
   let rows = '';
   if (payload.dutyType === 'Outstation') {
     rows += `<div class="sum-row"><span>Outstation (${a.outstationDays} day${a.outstationDays > 1 ? 's' : ''})</span><span>${fmtINR(a.outstationAllowance)}</span></div>`;
-    if (a.outstationDays === 2) rows += `<div class="sum-note">↳ Duty extended ≥30 min past midnight</div>`;
+    if (a.outstationDays > 1) rows += `<div class="sum-note">↳ Duty extended past 00:30</div>`;
   } else {
     rows += `<div class="sum-row"><span>Overtime (${a.overtimeHours.toFixed(2)} h × ₹100)</span><span>${fmtINR(a.overtimeAmount)}</span></div>`;
   }
@@ -211,11 +272,24 @@ function submitAnother() {
   document.getElementById('dutyForm').reset();
   document.getElementById('dutyForm').style.display = 'flex';
   document.getElementById('successBox').style.display = 'none';
-  document.getElementById('dutyDate').value = todayStr();
+  const today = todayStr();
+  document.getElementById('dutyDate').value = today;
+  document.getElementById('startDatetime').value = today + 'T00:00';
+  document.getElementById('endDatetime').value   = today + 'T00:00';
   document.getElementById('kmSummary').style.display = 'none';
   document.getElementById('otPreview').style.display = 'none';
   document.getElementById('expTotal').textContent = '₹0';
   setFuel(false);
+}
+
+// Returns true if two datetime ranges overlap.
+function timesOverlap(sd1, st1, ed1, et1, sd2, st2, ed2, et2) {
+  if (!sd1 || !st1 || !ed1 || !et1 || !sd2 || !st2 || !ed2 || !et2) return false;
+  const s1 = new Date(sd1 + 'T' + st1).getTime();
+  const e1 = new Date(ed1 + 'T' + et1).getTime();
+  const s2 = new Date(sd2 + 'T' + st2).getTime();
+  const e2 = new Date(ed2 + 'T' + et2).getTime();
+  return s1 < e2 && s2 < e1;
 }
 
 function showBanner() {
