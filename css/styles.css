@@ -51,10 +51,8 @@ body {
   padding: 6px 16px;
 }
 .brand-logo {
-  height: 56px;
-  width: 185px;
-  object-fit: cover;
-  object-position: center 45%;
+  height: 52px;
+  width: auto;
   display: block;
 }
 
