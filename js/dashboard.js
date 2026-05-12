@@ -587,9 +587,9 @@ async function generatePayslip() {
   tr.gross td{background:#f5e9c8;font-weight:700;color:#7a5e1a;font-size:14px}
   tr.deduct td{color:#dc2626}
   tr.net td{background:#c9a84c;color:#0d0d0b;font-weight:700;font-size:15px;border:none}
-  .sig-area{display:flex;justify-content:space-between;margin-top:52px;padding-top:0}
+  .sig-area{display:flex;justify-content:space-between;margin-top:80px;padding-top:0}
   .sig-block{width:44%}
-  .sig-line{border-top:1px solid #374151;margin-bottom:6px}
+  .sig-line{border-top:1px solid #374151;margin-bottom:10px;margin-top:90px}
   .sig-label{font-size:11px;color:#6b7280}
   .sig-name{font-size:12px;font-weight:600;margin-top:3px}
   .footer-note{text-align:center;font-size:10px;color:#9ca3af;margin-top:28px;border-top:1px solid #f3f4f6;padding-top:10px}
