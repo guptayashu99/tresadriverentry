@@ -18,7 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // When duty date changes, update datetime defaults
   document.getElementById('dutyDate').addEventListener('change', e => {
     setDatetimeDefaults(e.target.value);
-    updateOTPreview();
   });
 
   // Live km / duration summary
@@ -29,11 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Live expense total
   ['parking','mcd','toll','stateTax','miscellaneous'].forEach(id =>
     document.getElementById(id).addEventListener('input', updateExpTotal)
-  );
-
-  // Live OT preview
-  ['startDatetime','endDatetime','dutyDate','dutyType'].forEach(id =>
-    document.getElementById(id).addEventListener('change', updateOTPreview)
   );
 
   // Form submit
@@ -116,7 +110,6 @@ function updateKmSummary() {
     }
   }
 
-  updateOTPreview();
 }
 
 // ── Live expense total ─────────────────────────────────────────────
@@ -124,36 +117,6 @@ function updateExpTotal() {
   const ids = ['parking','mcd','toll','stateTax','miscellaneous'];
   const tot = ids.reduce((s, id) => s + (+document.getElementById(id).value || 0), 0);
   document.getElementById('expTotal').textContent = fmtINR(tot);
-}
-
-// ── Live OT / allowance preview ────────────────────────────────────
-function updateOTPreview() {
-  const sdt   = document.getElementById('startDatetime').value;
-  const edt   = document.getElementById('endDatetime').value;
-  const dtype = document.getElementById('dutyType').value;
-  const box   = document.getElementById('otPreview');
-
-  if (!sdt || !edt || !dtype) { box.style.display = 'none'; return; }
-
-  const { date: startDate, time: startTime } = splitDT(sdt);
-  const { date: endDate,   time: endTime   } = splitDT(edt);
-  const dutyDate = document.getElementById('dutyDate').value || startDate;
-
-  const a = calcDutyAllowance({ startDate, startTime, endDate, endTime, dutyType: dtype, dutyDate });
-  box.style.display = 'block';
-
-  let html = '';
-  if (dtype === 'Outstation') {
-    html += `<div>Outstation: <strong>${a.outstationDays} day${a.outstationDays > 1 ? 's' : ''}</strong> × ${fmtINR(SALARY.OUTSTATION_DAILY)} = <strong>${fmtINR(a.outstationAllowance)}</strong></div>`;
-    if (a.outstationDays > 1) html += `<div style="font-size:12px;color:var(--text-muted)">↳ Duty extends ≥30 min past midnight</div>`;
-  } else {
-    html += `<div>Overtime: <strong>${a.overtimeHours.toFixed(2)} h</strong> × ${fmtINR(SALARY.OT_RATE)} = <strong>${fmtINR(a.overtimeAmount)}</strong></div>`;
-  }
-  if (a.isSunday) {
-    html += `<div>Sunday bonus: <strong>${fmtINR(SALARY.SUNDAY_BONUS)}</strong></div>`;
-  }
-  html += `<div class="ot-total">Total Allowance: ${fmtINR(a.totalAllowance)}</div>`;
-  box.innerHTML = html;
 }
 
 // ── Submit ─────────────────────────────────────────────────────────
