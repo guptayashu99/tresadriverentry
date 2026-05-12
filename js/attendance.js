@@ -1,10 +1,12 @@
-/* Attendance page — garage-gated check-in / check-out */
+/* Attendance page — PIN-gated, garage-gated check-in / check-out */
 
-let currentDriver  = null;
+const ATT_SESSION_KEY = 'attendanceAuth';
+
+let currentDriver   = null;
 let locationWatcher = null;
-let atGarage       = false;
-let currentStatus  = null; // 'in' | 'out' | null
-let todayRecords   = [];
+let atGarage        = false;
+let currentStatus   = null; // 'in' | 'out' | null
+let todayRecords    = [];
 
 document.addEventListener('DOMContentLoaded', () => {
   const picker = document.getElementById('driverPicker');
@@ -14,27 +16,57 @@ document.addEventListener('DOMContentLoaded', () => {
     picker.appendChild(o);
   });
 
-  const saved = localStorage.getItem('attendanceDriver');
+  const saved = sessionStorage.getItem(ATT_SESSION_KEY);
   if (saved && CONFIG.DRIVERS.includes(saved)) {
-    picker.value = saved;
-    selectDriver();
+    showAuthenticated(saved);
+    loadTodayStatus();
+    startLocationWatch();
   }
 });
 
-function selectDriver() {
+// ── Auth ────────────────────────────────────────────────────────────
+
+function handleLogin() {
   const name = document.getElementById('driverPicker').value;
-  if (!name) {
-    document.getElementById('noDriver').style.display = 'block';
-    document.getElementById('content').style.display  = 'none';
-    stopLocationWatch();
-    return;
+  const pin  = document.getElementById('pinInput').value;
+  const err  = document.getElementById('loginError');
+
+  if (!name) { err.textContent = '❌ Please select your name.'; err.style.display = 'block'; return; }
+
+  if ((CONFIG.DRIVER_PINS[name] || '') === pin) {
+    err.style.display = 'none';
+    currentDriver = name;
+    sessionStorage.setItem(ATT_SESSION_KEY, name);
+    showAuthenticated(name);
+    loadTodayStatus();
+    startLocationWatch();
+  } else {
+    err.textContent = '❌ Incorrect PIN. Please try again.';
+    err.style.display = 'block';
+    document.getElementById('pinInput').value = '';
+    document.getElementById('pinInput').focus();
   }
+}
+
+function showAuthenticated(name) {
   currentDriver = name;
-  localStorage.setItem('attendanceDriver', name);
-  document.getElementById('noDriver').style.display = 'none';
-  document.getElementById('content').style.display  = 'block';
-  loadTodayStatus();
-  startLocationWatch();
+  document.getElementById('loginCard').style.display    = 'none';
+  document.getElementById('loggedInBar').style.display  = 'flex';
+  document.getElementById('loggedInName').textContent   = name;
+  document.getElementById('content').style.display      = 'block';
+}
+
+function logout() {
+  sessionStorage.removeItem(ATT_SESSION_KEY);
+  stopLocationWatch();
+  currentDriver = null;
+  currentStatus = null;
+  todayRecords  = [];
+  document.getElementById('loginCard').style.display   = 'block';
+  document.getElementById('loggedInBar').style.display = 'none';
+  document.getElementById('content').style.display     = 'none';
+  document.getElementById('pinInput').value            = '';
+  document.getElementById('driverPicker').value        = '';
 }
 
 // ── Data ────────────────────────────────────────────────────────────
