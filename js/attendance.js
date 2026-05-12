@@ -1,0 +1,214 @@
+/* Attendance page — garage-gated check-in / check-out */
+
+let currentDriver  = null;
+let locationWatcher = null;
+let atGarage       = false;
+let currentStatus  = null; // 'in' | 'out' | null
+let todayRecords   = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+  const picker = document.getElementById('driverPicker');
+  CONFIG.DRIVERS.forEach(d => {
+    const o = document.createElement('option');
+    o.value = o.textContent = d;
+    picker.appendChild(o);
+  });
+
+  const saved = localStorage.getItem('attendanceDriver');
+  if (saved && CONFIG.DRIVERS.includes(saved)) {
+    picker.value = saved;
+    selectDriver();
+  }
+});
+
+function selectDriver() {
+  const name = document.getElementById('driverPicker').value;
+  if (!name) {
+    document.getElementById('noDriver').style.display = 'block';
+    document.getElementById('content').style.display  = 'none';
+    stopLocationWatch();
+    return;
+  }
+  currentDriver = name;
+  localStorage.setItem('attendanceDriver', name);
+  document.getElementById('noDriver').style.display = 'none';
+  document.getElementById('content').style.display  = 'block';
+  loadTodayStatus();
+  startLocationWatch();
+}
+
+// ── Data ────────────────────────────────────────────────────────────
+
+async function loadTodayStatus() {
+  const today = todayStr();
+  try {
+    const res  = await fetch(CONFIG.APPS_SCRIPT_URL + '?type=attendance');
+    const json = await res.json();
+    const all  = json.success ? (json.data || []) : [];
+
+    todayRecords = all.filter(r =>
+      r['Driver Name'] === currentDriver &&
+      (r['Date'] || '').startsWith(today)
+    );
+
+    const last = todayRecords[todayRecords.length - 1];
+    currentStatus = last ? (last['Action'] === 'Check-in' ? 'in' : 'out') : null;
+  } catch {
+    currentStatus = null;
+  }
+  updateActionButton();
+  renderLog();
+}
+
+// ── Geolocation ─────────────────────────────────────────────────────
+
+function startLocationWatch() {
+  stopLocationWatch();
+  if (!navigator.geolocation) {
+    setLocationUI('⚠️', '#f59e0b', 'Geolocation not supported', 'Use a device that supports GPS.');
+    return;
+  }
+  locationWatcher = navigator.geolocation.watchPosition(
+    onLocationSuccess,
+    onLocationError,
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+  );
+}
+
+function stopLocationWatch() {
+  if (locationWatcher !== null) {
+    navigator.geolocation.clearWatch(locationWatcher);
+    locationWatcher = null;
+  }
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R    = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a    = Math.sin(dLat / 2) ** 2 +
+               Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+               Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function onLocationSuccess(pos) {
+  const { latitude, longitude, accuracy } = pos.coords;
+  const dist = haversine(latitude, longitude, CONFIG.GARAGE_LAT, CONFIG.GARAGE_LNG);
+  atGarage   = dist <= CONFIG.GARAGE_RADIUS_M;
+
+  const distLabel = dist >= 1000
+    ? (dist / 1000).toFixed(1) + ' km'
+    : Math.round(dist) + ' m';
+
+  if (atGarage) {
+    setLocationUI('✅', '#16a34a', "You're at the garage",
+      `${Math.round(dist)} m from garage · GPS accuracy ±${Math.round(accuracy)} m`);
+  } else {
+    setLocationUI('❌', '#dc2626', 'Not at the garage',
+      `${distLabel} away — check-in is only allowed at the garage`);
+  }
+  updateActionButton();
+}
+
+function onLocationError(err) {
+  atGarage = false;
+  const sub = err.code === 1
+    ? 'Please allow location access in your browser settings.'
+    : 'Could not get your location. Please try again.';
+  setLocationUI('⚠️', '#f59e0b', 'Location unavailable', sub);
+  updateActionButton();
+}
+
+function setLocationUI(icon, color, label, sub) {
+  document.getElementById('locationIcon').textContent   = icon;
+  document.getElementById('locationLabel').textContent  = label;
+  document.getElementById('locationLabel').style.color  = color;
+  document.getElementById('locationSub').textContent    = sub;
+}
+
+// ── Action button ────────────────────────────────────────────────────
+
+function updateActionButton() {
+  const btn = document.getElementById('actionBtn');
+  if (currentStatus === 'in') {
+    btn.textContent = 'Check Out';
+    btn.className   = 'action-btn checkout';
+  } else {
+    btn.textContent = 'Check In';
+    btn.className   = 'action-btn checkin';
+  }
+  btn.disabled = !atGarage;
+}
+
+async function handleAction() {
+  if (!atGarage || !currentDriver) return;
+
+  const action = currentStatus === 'in' ? 'Check-out' : 'Check-in';
+  const btn    = document.getElementById('actionBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  // Re-verify position at the moment of submission
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude, longitude } = pos.coords;
+    const dist = haversine(latitude, longitude, CONFIG.GARAGE_LAT, CONFIG.GARAGE_LNG);
+
+    if (dist > CONFIG.GARAGE_RADIUS_M) {
+      alert("You've moved away from the garage. Please be at the garage to check in/out.");
+      atGarage = false;
+      updateActionButton();
+      return;
+    }
+
+    const now  = new Date();
+    const date = todayStr();
+    const time = now.toTimeString().slice(0, 5);
+
+    try {
+      await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'attendance',
+          driverName: currentDriver,
+          attendanceAction: action,
+          date, time,
+          latitude, longitude
+        })
+      });
+
+      currentStatus = action === 'Check-in' ? 'in' : 'out';
+      todayRecords.push({ 'Driver Name': currentDriver, 'Action': action, 'Date': date, 'Time': time });
+      updateActionButton();
+      renderLog();
+    } catch {
+      alert('Failed to save. Please check your connection and try again.');
+      updateActionButton();
+    }
+  }, () => {
+    alert('Could not verify your location. Please try again.');
+    updateActionButton();
+  }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+// ── Log ──────────────────────────────────────────────────────────────
+
+function renderLog() {
+  const el = document.getElementById('todayLog');
+  if (!todayRecords.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px 0">No entries today</div>';
+    return;
+  }
+  el.innerHTML = todayRecords.map(r => {
+    const isIn  = r['Action'] === 'Check-in';
+    const badge = isIn
+      ? '<span class="badge-checkin">▶ Check-in</span>'
+      : '<span class="badge-checkout">⏹ Check-out</span>';
+    return `<div class="log-row">${badge}<span style="color:var(--text-muted)">${r['Time'] || '—'}</span></div>`;
+  }).join('');
+}
+
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}

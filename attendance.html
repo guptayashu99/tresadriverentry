@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tresa – Attendance</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    .location-card {
+      text-align: center;
+      padding: 28px 20px;
+    }
+    .location-icon { font-size: 52px; margin-bottom: 10px; }
+    .location-label { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+    .location-sub   { font-size: 13px; color: var(--text-muted); }
+    .action-btn {
+      width: 100%;
+      padding: 18px;
+      font-size: 18px;
+      font-weight: 700;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+      color: #fff;
+    }
+    .action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .action-btn.checkin  { background: #16a34a; }
+    .action-btn.checkout { background: #dc2626; }
+    .log-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .log-row:last-child { border-bottom: none; }
+    .badge-checkin  { background: #dcfce7; color: #16a34a; padding: 3px 10px; border-radius: 20px; font-weight: 600; font-size: 12px; }
+    .badge-checkout { background: #fee2e2; color: #dc2626; padding: 3px 10px; border-radius: 20px; font-weight: 600; font-size: 12px; }
+    .beta-banner {
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 12px;
+      color: #92400e;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="container">
+    <div class="header-inner">
+      <a class="brand" href="index.html">
+        <span class="brand-icon">🚗</span> Tresa
+      </a>
+      <nav class="nav">
+        <a href="index.html"     class="nav-link">Entry Form</a>
+        <a href="my-duties.html" class="nav-link">My Duties</a>
+        <a href="dashboard.html" class="nav-link">Dashboard</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main class="main">
+  <div class="container">
+
+    <div class="page-header">
+      <h1>Attendance</h1>
+      <p>Check in and out from the garage</p>
+    </div>
+
+    <div class="beta-banner">⚠️ Beta — not yet live</div>
+
+    <!-- Driver picker -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="field" style="margin:0">
+        <label for="driverPicker">Your Name</label>
+        <select id="driverPicker" onchange="selectDriver()">
+          <option value="">Select driver…</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Prompt when no driver selected -->
+    <div id="noDriver" class="card" style="text-align:center;padding:48px 20px;color:var(--text-muted)">
+      Select your name to continue
+    </div>
+
+    <!-- Main content (hidden until driver selected) -->
+    <div id="content" style="display:none">
+
+      <!-- Location status -->
+      <div class="card location-card" style="margin-bottom:16px">
+        <div id="locationIcon" class="location-icon">📍</div>
+        <div id="locationLabel" class="location-label" style="color:var(--text-muted)">Getting your location…</div>
+        <div id="locationSub"   class="location-sub"></div>
+      </div>
+
+      <!-- Check-in / Check-out button -->
+      <div style="margin-bottom:16px">
+        <button id="actionBtn" class="action-btn checkin" onclick="handleAction()" disabled>
+          Check In
+        </button>
+      </div>
+
+      <!-- Today's log -->
+      <div class="card">
+        <div class="section-title"><span class="section-icon">🗒️</span> Today's Log</div>
+        <div id="todayLog" style="color:var(--text-muted);text-align:center;padding:16px">Loading…</div>
+      </div>
+
+    </div>
+
+  </div>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/attendance.js"></script>
+</body>
+</html>
