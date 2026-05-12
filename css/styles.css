@@ -45,13 +45,13 @@ body {
 }
 .header-inner {
   display: flex; align-items: center; justify-content: space-between;
-  height: 62px;
+  height: 72px;
 }
 .brand {
   display: flex; align-items: center;
   text-decoration: none;
 }
-.brand-logo { height: 40px; width: auto; display: block; }
+.brand-logo { height: 60px; width: auto; display: block; }
 
 .nav { display: flex; gap: 4px; }
 .nav-link {
