@@ -10,6 +10,13 @@ const CONFIG = {
   VENDORS: ['WTI', 'Tresa Fleet Management', 'Personal Use/Service', 'Other'],
   DUTY_TYPES: ['Hourly Rental', 'Airport Transfer', 'Outstation'],
 
+  // Per-driver PINs for My Duties page — change these before sharing with drivers
+  DRIVER_PINS: {
+    'Prem Singh Rawat':  '1111',
+    'Laxman Singh Negi': '2222',
+    'Shreyas Gupta':     '3333'
+  },
+
   // Garage location — attendance check-in/out is only allowed within GARAGE_RADIUS_M metres
   GARAGE_LAT: 28.58458,
   GARAGE_LNG: 77.03453,

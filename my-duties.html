@@ -33,27 +33,40 @@
       <p>Check your submitted duties and allowances</p>
     </div>
 
-    <!-- Driver picker -->
-    <div class="card" style="margin-bottom:18px">
-      <div class="section-title"><span class="section-icon">👤</span> Select Your Name</div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-        <div class="field" style="min-width:220px;flex:1">
-          <label for="driverPicker">I am…</label>
-          <select id="driverPicker" onchange="selectDriver()">
-            <option value="">Select your name…</option>
-          </select>
+    <!-- Login card (shown when not authenticated) -->
+    <div id="loginCard" class="card" style="max-width:400px;margin:0 auto 24px">
+      <div class="section-title"><span class="section-icon">🔒</span> Sign In</div>
+      <div class="field">
+        <label for="driverPicker">Your Name</label>
+        <select id="driverPicker">
+          <option value="">Select your name…</option>
+        </select>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label for="pinInput">PIN</label>
+        <input type="password" id="pinInput" placeholder="Enter your PIN"
+               maxlength="10" inputmode="numeric"
+               onkeydown="if(event.key==='Enter') handleLogin()">
+      </div>
+      <div id="loginError" class="alert alert-error" style="display:none;margin-top:10px">
+        ❌ Incorrect PIN. Please try again.
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="handleLogin()">
+        Sign In
+      </button>
+    </div>
+
+    <!-- Logged-in bar (shown after auth) -->
+    <div id="loggedInBar" style="display:none;margin-bottom:18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-weight:600;color:var(--text)">👤 <span id="loggedInName"></span></span>
+          <button class="btn" style="padding:4px 12px;font-size:12px" onclick="logout()">Log out</button>
         </div>
-        <div class="field" style="min-width:160px">
-          <label for="monthFilter">Month</label>
+        <div class="field" style="margin:0;min-width:160px">
           <input type="month" id="monthFilter" onchange="renderAll()">
         </div>
       </div>
-    </div>
-
-    <!-- No driver selected -->
-    <div id="noDriver" style="text-align:center;padding:48px;color:var(--text-muted)">
-      <div style="font-size:48px;margin-bottom:12px">👆</div>
-      <p>Select your name above to see your duties</p>
     </div>
 
     <!-- Loader -->

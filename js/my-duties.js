@@ -1,9 +1,9 @@
-/* My Duties page — read-only view for drivers */
+/* My Duties page — PIN-gated, read-only view for drivers */
 
+const SESSION_KEY = 'myDutiesDriver';
 let myDuties = [];
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Populate driver dropdown
   const picker = document.getElementById('driverPicker');
   CONFIG.DRIVERS.forEach(d => {
     const o = document.createElement('option');
@@ -11,36 +11,70 @@ document.addEventListener('DOMContentLoaded', () => {
     picker.appendChild(o);
   });
 
-  const saved = localStorage.getItem('selectedDriver');
-  if (saved && CONFIG.DRIVERS.includes(saved)) {
-    picker.value = saved;
-    loadMyDuties(saved);
-  }
-
-  // Default month = current month
   const now = new Date();
   document.getElementById('monthFilter').value =
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  // Restore session if already authenticated this browser session
+  const saved = sessionStorage.getItem(SESSION_KEY);
+  if (saved && CONFIG.DRIVERS.includes(saved)) {
+    showAuthenticated(saved);
+    loadMyDuties(saved);
+  }
 });
 
-function selectDriver() {
+// ── Auth ────────────────────────────────────────────────────────────
+
+function handleLogin() {
   const name = document.getElementById('driverPicker').value;
-  if (!name) return;
-  localStorage.setItem('selectedDriver', name);
-  loadMyDuties(name);
+  const pin  = document.getElementById('pinInput').value;
+  const err  = document.getElementById('loginError');
+
+  if (!name) { err.textContent = '❌ Please select your name.'; err.style.display = 'block'; return; }
+
+  if ((CONFIG.DRIVER_PINS[name] || '') === pin) {
+    err.style.display = 'none';
+    sessionStorage.setItem(SESSION_KEY, name);
+    showAuthenticated(name);
+    loadMyDuties(name);
+  } else {
+    err.textContent = '❌ Incorrect PIN. Please try again.';
+    err.style.display = 'block';
+    document.getElementById('pinInput').value = '';
+    document.getElementById('pinInput').focus();
+  }
 }
 
+function showAuthenticated(name) {
+  document.getElementById('loginCard').style.display   = 'none';
+  document.getElementById('loggedInBar').style.display = 'block';
+  document.getElementById('loggedInName').textContent  = name;
+}
+
+function logout() {
+  sessionStorage.removeItem(SESSION_KEY);
+  document.getElementById('loginCard').style.display   = 'block';
+  document.getElementById('loggedInBar').style.display = 'none';
+  document.getElementById('content').style.display     = 'none';
+  document.getElementById('loader').style.display      = 'none';
+  document.getElementById('pinInput').value            = '';
+  document.getElementById('driverPicker').value        = '';
+  myDuties = [];
+}
+
+// ── Data ────────────────────────────────────────────────────────────
+
 async function loadMyDuties(driver) {
-  document.getElementById('content').style.display  = 'none';
-  document.getElementById('loader').style.display   = 'flex';
-  document.getElementById('noDriver').style.display = 'none';
+  document.getElementById('content').style.display = 'none';
+  document.getElementById('loader').style.display  = 'flex';
 
   try {
     const res  = await fetch(CONFIG.APPS_SCRIPT_URL);
     const json = await res.json();
     const all  = json.success ? (json.data || []) : [];
-    myDuties   = all.filter(d => (d['Driver Name'] || '') === driver)
-                    .sort((a, b) => (b['Duty Date'] || '').localeCompare(a['Duty Date'] || ''));
+    myDuties   = all
+      .filter(d => (d['Driver Name'] || '') === driver)
+      .sort((a, b) => (b['Duty Date'] || '').localeCompare(a['Duty Date'] || ''));
 
     document.getElementById('loader').style.display  = 'none';
     document.getElementById('content').style.display = 'block';
@@ -51,19 +85,20 @@ async function loadMyDuties(driver) {
   }
 }
 
+// ── Render ───────────────────────────────────────────────────────────
+
 function renderAll() {
   const ym       = document.getElementById('monthFilter').value;
   const filtered = ym ? myDuties.filter(d => (d['Duty Date'] || '').startsWith(ym)) : myDuties;
-
   renderSummary(filtered);
   renderTable(filtered);
 }
 
 function renderSummary(duties) {
-  const km    = duties.reduce((s, d) => s + (+d['Total Km']       || 0), 0);
-  const exp   = duties.reduce((s, d) => s + (+d['Total Expenses'] || 0), 0);
-  const fuel  = duties.reduce((s, d) => s + (+d['Fuel Amount']    || 0), 0);
-  let   alw   = 0;
+  const km   = duties.reduce((s, d) => s + (+d['Total Km']       || 0), 0);
+  const exp  = duties.reduce((s, d) => s + (+d['Total Expenses'] || 0), 0);
+  const fuel = duties.reduce((s, d) => s + (+d['Fuel Amount']    || 0), 0);
+  let   alw  = 0;
   duties.forEach(d => { alw += calcDutyAllowance(d).totalAllowance; });
 
   document.getElementById('sDuties').textContent = duties.length;
@@ -86,8 +121,8 @@ function renderTable(duties) {
   }
 
   body.innerHTML = duties.map(d => {
-    const a   = calcDutyAllowance(d);
-    const exp = +d['Total Expenses'] || 0;
+    const a    = calcDutyAllowance(d);
+    const exp  = +d['Total Expenses'] || 0;
     const fuel = d['Filled Fuel'] === 'Yes';
 
     return `<tr>
@@ -109,6 +144,8 @@ function renderTable(duties) {
     </tr>`;
   }).join('');
 }
+
+// ── Helpers ──────────────────────────────────────────────────────────
 
 function fmtTimeRange(d) {
   const st = d['Start Time'] || '';
