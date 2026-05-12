@@ -11,6 +11,7 @@
 
 const SHEET_NAME            = 'Duties';
 const ATTENDANCE_SHEET_NAME = 'Attendance';
+const PAYMENTS_SHEET_NAME   = 'Payments';
 const OWNER_EMAIL           = 'guptayashu99@gmail.com';
 
 // Column headers – order must match appendRow() below
@@ -27,12 +28,17 @@ const ATTENDANCE_HEADERS = [
   'Timestamp', 'Driver Name', 'Action', 'Date', 'Time', 'Latitude', 'Longitude'
 ];
 
+const PAYMENT_HEADERS = [
+  'Timestamp', 'Driver Name', 'Month', 'Amount', 'Payment Date', 'Mode', 'Notes'
+];
+
 /* ────────────────────────────────────────────────────────── */
 
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     if (data.action === 'attendance') return doPostAttendance_(data);
+    if (data.action === 'payment')    return doPostPayment_(data);
     return doPostDuty_(data);
   } catch (err) {
     return jsonResp_({ success: false, error: err.toString() });
@@ -107,6 +113,20 @@ function doPostDuty_(data) {
   return jsonResp_({ success: true });
 }
 
+function doPostPayment_(data) {
+  const sheet = getOrCreatePaymentsSheet_();
+  sheet.appendRow([
+    new Date(),
+    data.driverName   || '',
+    data.month        || '',
+    parseFloat(data.amount) || 0,
+    data.paymentDate  || '',
+    data.mode         || '',
+    data.notes        || ''
+  ]);
+  return jsonResp_({ success: true });
+}
+
 function doPostAttendance_(data) {
   const sheet = getOrCreateAttendanceSheet_();
   sheet.appendRow([
@@ -127,6 +147,7 @@ function doGet(e) {
   try {
     const type = (e && e.parameter && e.parameter.type) || 'duties';
     if (type === 'attendance') return doGetAttendance_();
+    if (type === 'payments')   return doGetPayments_();
     return doGetDuties_();
   } catch (err) {
     return jsonResp_({ success: false, error: err.toString() });
@@ -189,6 +210,29 @@ function doGetAttendance_() {
   return jsonResp_({ success: true, data });
 }
 
+function doGetPayments_() {
+  const sheet = getOrCreatePaymentsSheet_();
+  if (sheet.getLastRow() <= 1) return jsonResp_({ success: true, data: [] });
+
+  const rows    = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  const tz      = Session.getScriptTimeZone();
+  const data    = rows.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => {
+      let v = row[i];
+      if (v instanceof Date) {
+        v = h === 'Timestamp'
+          ? Utilities.formatDate(v, tz, 'yyyy-MM-dd HH:mm:ss')
+          : Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+      }
+      obj[h] = (v === null || v === undefined) ? '' : v;
+    });
+    return obj;
+  });
+  return jsonResp_({ success: true, data });
+}
+
 /* ── Helpers ─────────────────────────────────────────────── */
 
 function getOrCreateSheet_() {
@@ -234,6 +278,21 @@ function getOrCreateAttendanceSheet_() {
     sheet.setColumnWidth(2, 160);
   }
 
+  return sheet;
+}
+
+function getOrCreatePaymentsSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(PAYMENTS_SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(PAYMENTS_SHEET_NAME);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(PAYMENT_HEADERS);
+    const hdr = sheet.getRange(1, 1, 1, PAYMENT_HEADERS.length);
+    hdr.setBackground('#1e3a8a').setFontColor('#ffffff').setFontWeight('bold').setWrap(false);
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidth(1, 160);
+    sheet.setColumnWidth(2, 160);
+  }
   return sheet;
 }
 

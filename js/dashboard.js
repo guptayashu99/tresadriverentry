@@ -1,7 +1,8 @@
 /* Dashboard logic — runs on dashboard.html */
 
-let allDuties    = [];
+let allDuties     = [];
 let allAttendance = [];
+let allPayments   = [];
 
 // ── Auth ───────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -45,6 +46,10 @@ function initDash() {
   populateFilter('fType',     CONFIG.DUTY_TYPES, 'All Types');
   populateFilter('salDriver', CONFIG.DRIVERS,    'All Drivers');
   populateFilter('psDriver',  CONFIG.DRIVERS);
+  populateFilter('payDriver', CONFIG.DRIVERS);
+
+  // Default payment date to today
+  el('payDate').value = new Date().toISOString().split('T')[0];
 
   const now = new Date();
   el('fFrom').value    = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
@@ -71,9 +76,10 @@ function populateFilter(id, items) {
 async function loadData() {
   setTableLoading(true);
   try {
-    const [dutiesRes, attRes] = await Promise.all([
+    const [dutiesRes, attRes, payRes] = await Promise.all([
       fetch(CONFIG.APPS_SCRIPT_URL),
-      fetch(CONFIG.APPS_SCRIPT_URL + '?type=attendance')
+      fetch(CONFIG.APPS_SCRIPT_URL + '?type=attendance'),
+      fetch(CONFIG.APPS_SCRIPT_URL + '?type=payments')
     ]);
 
     const dutiesText = await dutiesRes.text();
@@ -89,6 +95,12 @@ async function loadData() {
       allAttendance = attJson.success ? (attJson.data || []) : [];
     } catch { allAttendance = []; }
 
+    try {
+      const payJson = await payRes.json();
+      allPayments = payJson.success ? (payJson.data || []) : [];
+    } catch { allPayments = []; }
+
+    renderPaymentHistory();
     applyFilters();
   } catch (err) {
     console.error('Dashboard load error:', err);
@@ -335,6 +347,11 @@ function calcSalaryReport() {
     grandSun   += s.sundayBonus;
     grandGross += s.grossSalary;
 
+    const paid = allPayments.some(p => p['Driver Name'] === name && p['Month'] === ym);
+    const statusBadge = paid
+      ? `<span class="badge badge-green">✓ Paid</span>`
+      : `<span style="background:#fef3c7;color:#92400e;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">Pending</span>`;
+
     html += `<tr>
       <td><strong>${name}</strong></td>
       <td style="text-align:center">${s.totalDuties}</td>
@@ -343,6 +360,7 @@ function calcSalaryReport() {
       <td>${fmtINR(s.outstationAllowance)}</td>
       <td>${fmtINR(s.sundayBonus)}</td>
       <td><strong style="color:var(--primary)">${fmtINR(s.grossSalary)}</strong></td>
+      <td>${statusBadge}</td>
     </tr>`;
   });
 
@@ -353,6 +371,7 @@ function calcSalaryReport() {
     <td>${fmtINR(grandOut)}</td>
     <td>${fmtINR(grandSun)}</td>
     <td><strong>${fmtINR(grandGross)}</strong></td>
+    <td></td>
   </tr>`;
 
   el('salBody').innerHTML = html;
@@ -419,6 +438,81 @@ function renderVendorReport() {
       <td>${breakdown}</td>
       <td>${s.km.toLocaleString('en-IN')} km</td>
       <td>${s.duties.map(d => `<span class="badge badge-blue" style="margin:2px">${d['Vendor Duty Number']||'N/A'}</span>`).join(' ')}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Payment tracking ───────────────────────────────────────────────
+function autoFillPayAmount() {
+  const name = el('payDriver').value;
+  const ym   = el('salMonth').value;
+  if (name && ym) {
+    const s = calcMonthlySalary(allDuties, name, ym);
+    el('payAmount').value = s.grossSalary;
+  }
+}
+
+async function recordPayment() {
+  const name   = el('payDriver').value;
+  const ym     = el('salMonth').value;
+  const amount = parseFloat(el('payAmount').value);
+  const date   = el('payDate').value;
+  const mode   = el('payMode').value;
+  const notes  = el('payNotes').value.trim();
+
+  if (!name)   { alert('Select a driver.'); return; }
+  if (!ym)     { alert('Select a month first using the salary calculator above.'); return; }
+  if (!amount) { alert('Enter the payment amount.'); return; }
+  if (!date)   { alert('Enter the payment date.'); return; }
+
+  const btn = el('payBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'payment', driverName: name, month: ym, amount, paymentDate: date, mode, notes })
+    });
+
+    allPayments.push({
+      'Driver Name': name, 'Month': ym, 'Amount': amount,
+      'Payment Date': date, 'Mode': mode, 'Notes': notes
+    });
+    renderPaymentHistory();
+    el('payNotes').value = '';
+  } catch {
+    alert('Failed to save. Check your connection.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✓ Record Payment';
+  }
+}
+
+function renderPaymentHistory() {
+  const tbody = el('paymentBody');
+  if (!allPayments.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">No payments recorded yet</td></tr>';
+    return;
+  }
+
+  const sorted = [...allPayments].sort((a, b) =>
+    (b['Payment Date'] || '').localeCompare(a['Payment Date'] || '')
+  );
+
+  tbody.innerHTML = sorted.map(p => {
+    const [yr, mo] = (p['Month'] || '').split('-');
+    const monthLabel = yr && mo
+      ? new Date(+yr, +mo - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+      : (p['Month'] || '—');
+    return `<tr>
+      <td>${fmtDate(p['Payment Date'])}</td>
+      <td>${p['Driver Name'] || '—'}</td>
+      <td>${monthLabel}</td>
+      <td><strong style="color:var(--success)">${fmtINR(p['Amount'])}</strong></td>
+      <td>${p['Mode'] || '—'}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${p['Notes'] || '—'}</td>
     </tr>`;
   }).join('');
 }

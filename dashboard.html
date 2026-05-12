@@ -197,6 +197,7 @@
                   <th>Outstation</th>
                   <th>Sunday Bonus</th>
                   <th>Gross Salary</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody id="salBody">
@@ -237,6 +238,61 @@
           <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
             <button class="btn btn-primary" onclick="generatePayslip()">🖨️ Open Payslip</button>
             <p style="font-size:13px;color:var(--text-muted);margin:0">Calculate salaries for the month above first, then open the payslip to print or save as PDF.</p>
+          </div>
+        </div>
+
+        <!-- Payment recording -->
+        <div class="card" style="margin-bottom:18px">
+          <div class="section-title"><span class="section-icon">💳</span> Record Payment</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+            <div class="field" style="min-width:200px">
+              <label for="payDriver">Driver</label>
+              <select id="payDriver" onchange="autoFillPayAmount()"><option value="">Select driver…</option></select>
+            </div>
+            <div class="field" style="min-width:150px">
+              <label for="payAmount">Amount (₹)</label>
+              <input type="number" id="payAmount" placeholder="0" min="0">
+            </div>
+            <div class="field" style="min-width:160px">
+              <label for="payDate">Payment Date</label>
+              <input type="date" id="payDate">
+            </div>
+            <div class="field" style="min-width:160px">
+              <label for="payMode">Payment Mode</label>
+              <select id="payMode">
+                <option value="Cash">Cash</option>
+                <option value="UPI">UPI</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cheque">Cheque</option>
+              </select>
+            </div>
+            <div class="field" style="min-width:200px;flex:1">
+              <label for="payNotes">Notes</label>
+              <input type="text" id="payNotes" placeholder="Optional">
+            </div>
+          </div>
+          <button id="payBtn" class="btn btn-primary" onclick="recordPayment()">✓ Record Payment</button>
+        </div>
+
+        <!-- Payment history -->
+        <div class="card" style="margin-bottom:18px">
+          <div class="section-title"><span class="section-icon">📜</span> Payment History</div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Payment Date</th>
+                  <th>Driver</th>
+                  <th>Month</th>
+                  <th>Amount</th>
+                  <th>Mode</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody id="paymentBody">
+                <tr><td colspan="6" class="empty-cell">No payments recorded yet</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
