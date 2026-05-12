@@ -44,6 +44,7 @@ function initDash() {
   populateFilter('fVendor',   CONFIG.VENDORS,    'All Vendors');
   populateFilter('fType',     CONFIG.DUTY_TYPES, 'All Types');
   populateFilter('salDriver', CONFIG.DRIVERS,    'All Drivers');
+  populateFilter('psDriver',  CONFIG.DRIVERS);
 
   const now = new Date();
   el('fFrom').value    = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
@@ -420,6 +421,156 @@ function renderVendorReport() {
       <td>${s.duties.map(d => `<span class="badge badge-blue" style="margin:2px">${d['Vendor Duty Number']||'N/A'}</span>`).join(' ')}</td>
     </tr>`;
   }).join('');
+}
+
+// ── Payslip ────────────────────────────────────────────────────────
+function generatePayslip() {
+  const name = el('psDriver').value;
+  const ym   = el('salMonth').value;
+
+  if (!name) { alert('Select a driver first.'); return; }
+  if (!ym)   { alert('Select a month and calculate salaries first.'); return; }
+
+  const dedAccident = parseFloat(el('dedAccident').value) || 0;
+  const dedChallan  = parseFloat(el('dedChallan').value)  || 0;
+  const dedFine     = parseFloat(el('dedFine').value)     || 0;
+  const dedExpense  = parseFloat(el('dedExpense').value)  || 0;
+  const deductions  = dedAccident + dedChallan + dedFine + dedExpense;
+
+  const s          = calcMonthlySalary(allDuties, name, ym);
+  const totalAllow = s.overtimePay + s.outstationAllowance + s.sundayBonus;
+  const netSalary  = s.grossSalary - deductions;
+
+  const [yr, mo]  = ym.split('-');
+  const monthLabel = new Date(+yr, +mo - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  const today      = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  const inr = n => '₹' + Math.round(+n || 0).toLocaleString('en-IN');
+
+  const row = (label, value, cls = '') =>
+    `<tr class="${cls}"><td>${label}</td><td>${inr(value)}</td></tr>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Payslip – ${name} – ${monthLabel}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#111;background:#fff}
+  .page{max-width:680px;margin:32px auto;padding:40px;border:1px solid #d1d5db}
+  @media print{
+    body{margin:0}
+    .page{margin:0;border:none;padding:32px;max-width:100%}
+    .no-print{display:none!important}
+  }
+  .print-btn{display:block;margin:0 auto 28px;padding:9px 22px;background:#1e3a8a;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600}
+  .logo-area{text-align:center;margin-bottom:20px}
+  .co-name{font-size:18px;font-weight:700;color:#1e3a8a;letter-spacing:.02em}
+  .co-sub{font-size:11px;color:#6b7280;margin-top:2px}
+  .divider{border:none;border-top:2px solid #1e3a8a;margin:14px 0 6px}
+  .slip-title{text-align:center;font-size:14px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#1e3a8a;margin-bottom:4px}
+  .slip-month{text-align:center;font-size:12px;color:#374151;margin-bottom:20px}
+  .meta{display:flex;gap:0;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;margin-bottom:20px}
+  .meta-item{flex:1;padding:10px 14px;border-right:1px solid #e5e7eb}
+  .meta-item:last-child{border-right:none}
+  .meta-label{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+  .meta-value{font-size:13px;font-weight:600}
+  table{width:100%;border-collapse:collapse;margin-bottom:4px}
+  th{background:#1e3a8a;color:#fff;padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+  th:last-child{text-align:right}
+  td{padding:8px 14px;border-bottom:1px solid #f3f4f6}
+  td:last-child{text-align:right;font-weight:500}
+  tr.section-head td{background:#f8fafc;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#374151;border-top:1px solid #e5e7eb}
+  tr.subtotal td{background:#eff6ff;font-weight:600;color:#1e40af}
+  tr.gross td{background:#dbeafe;font-weight:700;color:#1e3a8a;font-size:14px}
+  tr.deduct td{color:#dc2626}
+  tr.net td{background:#1e3a8a;color:#fff;font-weight:700;font-size:15px;border:none}
+  .sig-area{display:flex;justify-content:space-between;margin-top:52px;padding-top:0}
+  .sig-block{width:44%}
+  .sig-line{border-top:1px solid #374151;margin-bottom:6px}
+  .sig-label{font-size:11px;color:#6b7280}
+  .sig-name{font-size:12px;font-weight:600;margin-top:3px}
+  .footer-note{text-align:center;font-size:10px;color:#9ca3af;margin-top:28px;border-top:1px solid #f3f4f6;padding-top:10px}
+</style>
+</head>
+<body>
+<div class="page">
+  <button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+
+  <div class="logo-area">
+    <div class="co-name">TRESA FLEET MANAGEMENT PRIVATE LIMITED</div>
+    <div class="co-sub">New Delhi, India</div>
+  </div>
+
+  <hr class="divider">
+  <div class="slip-title">Salary Slip</div>
+  <div class="slip-month">For the Month of ${monthLabel}</div>
+
+  <div class="meta">
+    <div class="meta-item">
+      <div class="meta-label">Employee Name</div>
+      <div class="meta-value">${name}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Designation</div>
+      <div class="meta-value">Driver</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Duties This Month</div>
+      <div class="meta-value">${s.totalDuties}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Pay Period</div>
+      <div class="meta-value">${monthLabel}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Description</th><th>Amount</th></tr></thead>
+    <tbody>
+      <tr class="section-head"><td colspan="2">Earnings</td></tr>
+      ${row('Basic Salary', s.basicSalary)}
+      <tr class="section-head"><td colspan="2">Allowances</td></tr>
+      ${row('Overtime Allowance', s.overtimePay)}
+      ${row('Outstation Allowance', s.outstationAllowance)}
+      ${row('Sunday Allowance', s.sundayBonus)}
+      ${row('Total Allowance', totalAllow, 'subtotal')}
+      ${row('Gross Salary', s.grossSalary, 'gross')}
+      <tr class="section-head"><td colspan="2">Deductions</td></tr>
+      ${dedAccident ? row('Accident',          dedAccident, 'deduct') : ''}
+      ${dedChallan  ? row('Challan',           dedChallan,  'deduct') : ''}
+      ${dedFine     ? row('Fine',              dedFine,     'deduct') : ''}
+      ${dedExpense  ? row('Invalid Expenses',  dedExpense,  'deduct') : ''}
+      ${!deductions ? `<tr class="deduct"><td>No deductions</td><td>—</td></tr>` : ''}
+      ${deductions  ? row('Total Deductions',  deductions,  'subtotal') : ''}
+      ${row('Net Salary Payable', netSalary, 'net')}
+    </tbody>
+  </table>
+
+  <div class="sig-area">
+    <div class="sig-block">
+      <div class="sig-line"></div>
+      <div class="sig-label">Employee Signature</div>
+      <div class="sig-name">${name}</div>
+    </div>
+    <div class="sig-block" style="text-align:right">
+      <div class="sig-line"></div>
+      <div class="sig-label">Authorised Signatory</div>
+      <div class="sig-name">For Tresa Fleet Management Private Limited</div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    Generated on ${today} &nbsp;·&nbsp; This is a system-generated payslip.
+  </div>
+</div>
+</body>
+</html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────

@@ -206,6 +206,40 @@
           </div>
         </div>
 
+        <!-- Payslip generator -->
+        <div class="card" style="margin-bottom:18px">
+          <div class="section-title"><span class="section-icon">🖨️</span> Generate Payslip</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px">
+            <div class="field" style="min-width:200px">
+              <label for="psDriver">Driver</label>
+              <select id="psDriver"><option value="">Select driver…</option></select>
+            </div>
+          </div>
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Deductions</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px">
+            <div class="field" style="min-width:150px">
+              <label for="dedAccident">Accident (₹)</label>
+              <input type="number" id="dedAccident" placeholder="0" min="0" value="0">
+            </div>
+            <div class="field" style="min-width:150px">
+              <label for="dedChallan">Challan (₹)</label>
+              <input type="number" id="dedChallan" placeholder="0" min="0" value="0">
+            </div>
+            <div class="field" style="min-width:150px">
+              <label for="dedFine">Fines (₹)</label>
+              <input type="number" id="dedFine" placeholder="0" min="0" value="0">
+            </div>
+            <div class="field" style="min-width:150px">
+              <label for="dedExpense">Invalid Expenses (₹)</label>
+              <input type="number" id="dedExpense" placeholder="0" min="0" value="0">
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="generatePayslip()">🖨️ Open Payslip</button>
+            <p style="font-size:13px;color:var(--text-muted);margin:0">Calculate salaries for the month above first, then open the payslip to print or save as PDF.</p>
+          </div>
+        </div>
+
         <!-- Per-duty breakdown -->
         <div class="card">
           <div class="section-title"><span class="section-icon">📊</span> Per-Duty Breakdown</div>
