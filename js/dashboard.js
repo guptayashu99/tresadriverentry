@@ -540,7 +540,7 @@ function generatePayslip() {
   const today      = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
 
   const inr = n => '₹' + Math.round(+n || 0).toLocaleString('en-IN');
-  const logoUrl = new URL('Branding/Tresa Fleet Logo.png', location.href).href;
+  const invoiceHeaderUrl = new URL('Branding/Invoice Header.png', location.href).href;
 
   const row = (label, value, cls = '') =>
     `<tr class="${cls}"><td>${label}</td><td>${inr(value)}</td></tr>`;
@@ -594,8 +594,7 @@ function generatePayslip() {
   <button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
 
   <div class="logo-area">
-    <img src="${logoUrl}" alt="Tresa Fleet Management" style="height:52px;width:auto;margin-bottom:6px">
-    <div class="co-sub">New Delhi, India</div>
+    <img src="${invoiceHeaderUrl}" alt="Tresa Fleet Management" style="width:100%;height:auto;display:block">
   </div>
 
   <hr class="divider">
