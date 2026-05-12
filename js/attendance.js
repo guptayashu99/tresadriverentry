@@ -5,6 +5,7 @@ const ATT_SESSION_KEY = 'attendanceAuth';
 let currentDriver   = null;
 let locationWatcher = null;
 let atGarage        = false;
+let lastPosition    = null; // most recent coords from watchPosition
 let currentStatus   = null; // 'in' | 'out' | null
 let todayRecords    = [];
 
@@ -125,6 +126,7 @@ function haversine(lat1, lon1, lat2, lon2) {
 }
 
 function onLocationSuccess(pos) {
+  lastPosition = pos;
   const { latitude, longitude, accuracy } = pos.coords;
   const dist = haversine(latitude, longitude, CONFIG.GARAGE_LAT, CONFIG.GARAGE_LNG);
   atGarage   = dist <= CONFIG.GARAGE_RADIUS_M;
@@ -174,54 +176,49 @@ function updateActionButton() {
 }
 
 async function handleAction() {
-  if (!atGarage || !currentDriver) return;
+  if (!atGarage || !currentDriver || !lastPosition) return;
 
   const action = currentStatus === 'in' ? 'Check-out' : 'Check-in';
   const btn    = document.getElementById('actionBtn');
   btn.disabled = true;
   btn.textContent = 'Saving…';
 
-  // Re-verify position at the moment of submission
-  navigator.geolocation.getCurrentPosition(async pos => {
-    const { latitude, longitude } = pos.coords;
-    const dist = haversine(latitude, longitude, CONFIG.GARAGE_LAT, CONFIG.GARAGE_LNG);
+  // Re-verify using the most recent position from watchPosition
+  const { latitude, longitude } = lastPosition.coords;
+  const dist = haversine(latitude, longitude, CONFIG.GARAGE_LAT, CONFIG.GARAGE_LNG);
 
-    if (dist > CONFIG.GARAGE_RADIUS_M) {
-      alert("You've moved away from the garage. Please be at the garage to check in/out.");
-      atGarage = false;
-      updateActionButton();
-      return;
-    }
-
-    const now  = new Date();
-    const date = todayStr();
-    const time = now.toTimeString().slice(0, 5);
-
-    try {
-      await fetch(CONFIG.APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'attendance',
-          driverName: currentDriver,
-          attendanceAction: action,
-          date, time,
-          latitude, longitude
-        })
-      });
-
-      currentStatus = action === 'Check-in' ? 'in' : 'out';
-      todayRecords.push({ 'Driver Name': currentDriver, 'Action': action, 'Date': date, 'Time': time });
-      updateActionButton();
-      renderLog();
-    } catch {
-      alert('Failed to save. Please check your connection and try again.');
-      updateActionButton();
-    }
-  }, () => {
-    alert('Could not verify your location. Please try again.');
+  if (dist > CONFIG.GARAGE_RADIUS_M) {
+    alert("You've moved away from the garage. Please be at the garage to check in/out.");
+    atGarage = false;
     updateActionButton();
-  }, { enableHighAccuracy: true, timeout: 10000 });
+    return;
+  }
+
+  const now  = new Date();
+  const date = todayStr();
+  const time = now.toTimeString().slice(0, 5);
+
+  try {
+    await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'attendance',
+        driverName: currentDriver,
+        attendanceAction: action,
+        date, time,
+        latitude, longitude
+      })
+    });
+
+    currentStatus = action === 'Check-in' ? 'in' : 'out';
+    todayRecords.push({ 'Driver Name': currentDriver, 'Action': action, 'Date': date, 'Time': time });
+    updateActionButton();
+    renderLog();
+  } catch {
+    alert('Failed to save. Please check your connection and try again.');
+    updateActionButton();
+  }
 }
 
 // ── Log ──────────────────────────────────────────────────────────────
