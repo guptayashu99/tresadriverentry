@@ -542,7 +542,7 @@ async function generatePayslip() {
   const inr = n => '₹' + Math.round(+n || 0).toLocaleString('en-IN');
   const invoiceHeaderUrl = await (async () => {
     try {
-      const resp = await fetch(new URL('Branding/Invoice%20Header.png', location.href).href);
+      const resp = await fetch(new URL('Branding/Payslip-Header.png', location.href).href);
       const blob = await resp.blob();
       return await new Promise(res => { const r = new FileReader(); r.onloadend = () => res(r.result); r.readAsDataURL(blob); });
     } catch { return ''; }
