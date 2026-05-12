@@ -540,6 +540,7 @@ function generatePayslip() {
   const today      = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
 
   const inr = n => '₹' + Math.round(+n || 0).toLocaleString('en-IN');
+  const logoUrl = new URL('Branding/Tresa Fleet Logo.png', location.href).href;
 
   const row = (label, value, cls = '') =>
     `<tr class="${cls}"><td>${label}</td><td>${inr(value)}</td></tr>`;
@@ -558,12 +559,12 @@ function generatePayslip() {
     .page{margin:0;border:none;padding:32px;max-width:100%}
     .no-print{display:none!important}
   }
-  .print-btn{display:block;margin:0 auto 28px;padding:9px 22px;background:#1e3a8a;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600}
+  .print-btn{display:block;margin:0 auto 28px;padding:9px 22px;background:#c9a84c;color:#0d0d0b;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600}
   .logo-area{text-align:center;margin-bottom:20px}
-  .co-name{font-size:18px;font-weight:700;color:#1e3a8a;letter-spacing:.02em}
+  .co-name{font-size:18px;font-weight:700;color:#c9a84c;letter-spacing:.02em}
   .co-sub{font-size:11px;color:#6b7280;margin-top:2px}
-  .divider{border:none;border-top:2px solid #1e3a8a;margin:14px 0 6px}
-  .slip-title{text-align:center;font-size:14px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#1e3a8a;margin-bottom:4px}
+  .divider{border:none;border-top:2px solid #c9a84c;margin:14px 0 6px}
+  .slip-title{text-align:center;font-size:14px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#c9a84c;margin-bottom:4px}
   .slip-month{text-align:center;font-size:12px;color:#374151;margin-bottom:20px}
   .meta{display:flex;gap:0;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;margin-bottom:20px}
   .meta-item{flex:1;padding:10px 14px;border-right:1px solid #e5e7eb}
@@ -571,15 +572,15 @@ function generatePayslip() {
   .meta-label{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
   .meta-value{font-size:13px;font-weight:600}
   table{width:100%;border-collapse:collapse;margin-bottom:4px}
-  th{background:#1e3a8a;color:#fff;padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+  th{background:#c9a84c;color:#0d0d0b;padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
   th:last-child{text-align:right}
   td{padding:8px 14px;border-bottom:1px solid #f3f4f6}
   td:last-child{text-align:right;font-weight:500}
   tr.section-head td{background:#f8fafc;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#374151;border-top:1px solid #e5e7eb}
-  tr.subtotal td{background:#eff6ff;font-weight:600;color:#1e40af}
-  tr.gross td{background:#dbeafe;font-weight:700;color:#1e3a8a;font-size:14px}
+  tr.subtotal td{background:#fdf8ed;font-weight:600;color:#a8842a}
+  tr.gross td{background:#f5e9c8;font-weight:700;color:#7a5e1a;font-size:14px}
   tr.deduct td{color:#dc2626}
-  tr.net td{background:#1e3a8a;color:#fff;font-weight:700;font-size:15px;border:none}
+  tr.net td{background:#c9a84c;color:#0d0d0b;font-weight:700;font-size:15px;border:none}
   .sig-area{display:flex;justify-content:space-between;margin-top:52px;padding-top:0}
   .sig-block{width:44%}
   .sig-line{border-top:1px solid #374151;margin-bottom:6px}
@@ -593,7 +594,7 @@ function generatePayslip() {
   <button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
 
   <div class="logo-area">
-    <div class="co-name">TRESA FLEET MANAGEMENT PRIVATE LIMITED</div>
+    <img src="${logoUrl}" alt="Tresa Fleet Management" style="height:52px;width:auto;margin-bottom:6px">
     <div class="co-sub">New Delhi, India</div>
   </div>
 
