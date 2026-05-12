@@ -518,7 +518,7 @@ function renderPaymentHistory() {
 }
 
 // ── Payslip ────────────────────────────────────────────────────────
-function generatePayslip() {
+async function generatePayslip() {
   const name = el('psDriver').value;
   const ym   = el('salMonth').value;
 
@@ -540,7 +540,13 @@ function generatePayslip() {
   const today      = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
 
   const inr = n => '₹' + Math.round(+n || 0).toLocaleString('en-IN');
-  const invoiceHeaderUrl = new URL('Branding/Invoice%20Header.png', location.href).href;
+  const invoiceHeaderUrl = await (async () => {
+    try {
+      const resp = await fetch(new URL('Branding/Invoice%20Header.png', location.href).href);
+      const blob = await resp.blob();
+      return await new Promise(res => { const r = new FileReader(); r.onloadend = () => res(r.result); r.readAsDataURL(blob); });
+    } catch { return ''; }
+  })();
 
   const row = (label, value, cls = '') =>
     `<tr class="${cls}"><td>${label}</td><td>${inr(value)}</td></tr>`;
