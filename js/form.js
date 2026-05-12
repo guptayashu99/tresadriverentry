@@ -182,6 +182,38 @@ async function handleSubmit(e) {
     if (!proceed) return;
   }
 
+  // Km continuity check — start km should not be below vehicle's last recorded end km
+  const vehiclePrev = existingDuties
+    .filter(d => (d['Vehicle Number'] || '') === payload.vehicleNumber)
+    .map(d => ({
+      endKm: parseFloat(d['End Km']),
+      endDT: new Date((d['End Date'] || d['Duty Date'] || '') + 'T' + (d['End Time'] || '00:00'))
+    }))
+    .filter(x => !isNaN(x.endDT.getTime()) && x.endDT <= new Date(startDate + 'T' + startTime))
+    .sort((a, b) => b.endDT - a.endDT)[0];
+
+  if (vehiclePrev && !isNaN(vehiclePrev.endKm) && vehiclePrev.endKm > payload.startKm) {
+    const ok = confirm(
+      `⚠️ Km mismatch for ${payload.vehicleNumber}:\n` +
+      `Last recorded end km: ${vehiclePrev.endKm}\n` +
+      `This duty's start km: ${payload.startKm}\n\n` +
+      `Start km is lower than the vehicle's last end km. Submit anyway?`
+    );
+    if (!ok) return;
+  }
+
+  // Late submission warning — duty date more than 3 days ago
+  const dutyDayMs  = new Date(payload.dutyDate + 'T00:00:00').getTime();
+  const todayMs    = new Date(new Date().toISOString().split('T')[0] + 'T00:00:00').getTime();
+  const daysLate   = Math.floor((todayMs - dutyDayMs) / 86400000);
+  if (daysLate > 3) {
+    const ok = confirm(
+      `⚠️ Late submission: this duty is from ${payload.dutyDate} (${daysLate} days ago).\n` +
+      `Duties should be submitted within 3 days.\n\nSubmit anyway?`
+    );
+    if (!ok) return;
+  }
+
   setLoading(true);
   try {
     await fetch(CONFIG.APPS_SCRIPT_URL, {

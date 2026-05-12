@@ -1,6 +1,7 @@
 /* Dashboard logic — runs on dashboard.html */
 
-let allDuties = [];
+let allDuties    = [];
+let allAttendance = [];
 
 // ── Auth ───────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -39,31 +40,25 @@ function initDash() {
     return;
   }
 
-  // Populate filter dropdowns
   populateFilter('fDriver',   CONFIG.DRIVERS,    'All Drivers');
   populateFilter('fVendor',   CONFIG.VENDORS,    'All Vendors');
   populateFilter('fType',     CONFIG.DUTY_TYPES, 'All Types');
   populateFilter('salDriver', CONFIG.DRIVERS,    'All Drivers');
 
-  // Default date range = current month
   const now = new Date();
-  document.getElementById('fFrom').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-  document.getElementById('fTo').value   = now.toISOString().split('T')[0];
+  el('fFrom').value    = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  el('fTo').value      = now.toISOString().split('T')[0];
+  el('salMonth').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
-  // Salary month picker default
-  document.getElementById('salMonth').value =
-    `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-
-  // Filter listeners
   ['fFrom','fTo','fDriver','fVendor','fType'].forEach(id =>
-    document.getElementById(id).addEventListener('change', applyFilters)
+    el(id).addEventListener('change', applyFilters)
   );
 
   loadData();
 }
 
-function populateFilter(id, items, placeholder) {
-  const sel = document.getElementById(id);
+function populateFilter(id, items) {
+  const sel = el(id);
   items.forEach(v => {
     const o = document.createElement('option');
     o.value = o.textContent = v;
@@ -75,37 +70,47 @@ function populateFilter(id, items, placeholder) {
 async function loadData() {
   setTableLoading(true);
   try {
-    const res  = await fetch(CONFIG.APPS_SCRIPT_URL);
-    const text = await res.text();
-    let json;
-    try { json = JSON.parse(text); }
-    catch { throw new Error('Response was not JSON. Got: ' + text.slice(0, 200)); }
-    allDuties  = json.success ? (json.data || []) : [];
-    if (!json.success) console.error('Apps Script error:', json.error);
+    const [dutiesRes, attRes] = await Promise.all([
+      fetch(CONFIG.APPS_SCRIPT_URL),
+      fetch(CONFIG.APPS_SCRIPT_URL + '?type=attendance')
+    ]);
+
+    const dutiesText = await dutiesRes.text();
+    let dutiesJson;
+    try { dutiesJson = JSON.parse(dutiesText); }
+    catch { throw new Error('Response was not JSON. Got: ' + dutiesText.slice(0, 200)); }
+
+    allDuties = dutiesJson.success ? (dutiesJson.data || []) : [];
+    if (!dutiesJson.success) console.error('Apps Script error:', dutiesJson.error);
+
+    try {
+      const attJson = await attRes.json();
+      allAttendance = attJson.success ? (attJson.data || []) : [];
+    } catch { allAttendance = []; }
+
     applyFilters();
   } catch (err) {
     console.error('Dashboard load error:', err);
-    document.getElementById('dutiesBody').innerHTML =
-      `<tr><td colspan="11" class="empty-cell">❌ Could not load data: ${err.message}<br><small>Check browser console (F12) for details.</small></td></tr>`;
+    el('dutiesBody').innerHTML =
+      `<tr><td colspan="12" class="empty-cell">❌ Could not load data: ${err.message}<br><small>Check browser console (F12) for details.</small></td></tr>`;
   }
 }
 
 function setTableLoading(on) {
-  if (on) {
-    document.getElementById('dutiesBody').innerHTML =
-      '<tr><td colspan="11" class="loading-cell"><div class="spinner"></div>Loading…</td></tr>';
-    document.getElementById('driverCards').innerHTML =
-      '<div class="loading-cell" style="grid-column:1/-1"><div class="spinner"></div></div>';
-  }
+  if (!on) return;
+  el('dutiesBody').innerHTML =
+    '<tr><td colspan="12" class="loading-cell"><div class="spinner"></div>Loading…</td></tr>';
+  el('driverCards').innerHTML =
+    '<div class="loading-cell" style="grid-column:1/-1"><div class="spinner"></div></div>';
 }
 
 // ── Filters ────────────────────────────────────────────────────────
 function applyFilters() {
-  const driver = document.getElementById('fDriver').value;
-  const vendor = document.getElementById('fVendor').value;
-  const type   = document.getElementById('fType').value;
-  const from   = document.getElementById('fFrom').value;
-  const to     = document.getElementById('fTo').value;
+  const driver = el('fDriver').value;
+  const vendor = el('fVendor').value;
+  const type   = el('fType').value;
+  const from   = el('fFrom').value;
+  const to     = el('fTo').value;
 
   const filtered = allDuties.filter(d => {
     if (driver && (d['Driver Name'] || '') !== driver) return false;
@@ -116,17 +121,20 @@ function applyFilters() {
     return true;
   }).sort((a,b) => (b['Duty Date']||'').localeCompare(a['Duty Date']||''));
 
+  const flagged = flagAnomalies(filtered);
+
   renderStats(filtered);
   renderDriverCards(filtered);
-  renderDuties(filtered);
+  renderAnomalyPanel(flagged);
+  renderDuties(flagged);
 }
 
 // ── Stats cards ────────────────────────────────────────────────────
 function renderStats(duties) {
-  const totalKm  = duties.reduce((s,d) => s + (+d['Total Km']       ||0), 0);
-  const totalExp = duties.reduce((s,d) => s + (+d['Total Expenses'] ||0), 0);
-  const totalFuel= duties.reduce((s,d) => s + (+d['Fuel Amount']    ||0), 0);
-  let   totalAlw = 0;
+  const totalKm   = duties.reduce((s,d) => s + (+d['Total Km']       || 0), 0);
+  const totalExp  = duties.reduce((s,d) => s + (+d['Total Expenses'] || 0), 0);
+  const totalFuel = duties.reduce((s,d) => s + (+d['Fuel Amount']    || 0), 0);
+  let   totalAlw  = 0;
   duties.forEach(d => { totalAlw += calcDutyAllowance(d).totalAllowance; });
 
   el('statDuties').textContent = duties.length;
@@ -161,20 +169,113 @@ function renderDriverCards(duties) {
     </div>`).join('') || '<p style="color:var(--text-muted);padding:12px">No data for selected filters</p>';
 }
 
+// ── Anomaly detection ──────────────────────────────────────────────
+function flagAnomalies(duties) {
+  return duties.map(d => {
+    const flags = [];
+
+    // Late submission: submitted >3 days after duty date
+    if (d['Timestamp'] && d['Duty Date']) {
+      const submitted = new Date(d['Timestamp'].replace(' ', 'T'));
+      const dutyDay   = new Date(d['Duty Date'] + 'T00:00:00');
+      const daysLate  = Math.floor((submitted - dutyDay) / 86400000);
+      if (daysLate > 3) flags.push({ type: 'late', label: `${daysLate}d late` });
+    }
+
+    // Km gap: start km lower than previous duty's end km for same vehicle
+    const v       = d['Vehicle Number'] || '';
+    const startKm = parseFloat(d['Start Km']);
+    if (v && !isNaN(startKm)) {
+      const startDT = new Date((d['Start Date'] || d['Duty Date'] || '') + 'T' + (d['Start Time'] || '00:00'));
+      const prev = allDuties
+        .filter(x => x !== d && (x['Vehicle Number'] || '') === v)
+        .map(x => ({
+          endKm: parseFloat(x['End Km']),
+          endDT: new Date((x['End Date'] || x['Duty Date'] || '') + 'T' + (x['End Time'] || '00:00'))
+        }))
+        .filter(x => !isNaN(x.endDT.getTime()) && x.endDT <= startDT)
+        .sort((a, b) => b.endDT - a.endDT)[0];
+      if (prev && !isNaN(prev.endKm) && prev.endKm > startKm) {
+        flags.push({ type: 'km_gap', label: `Km ↓ (was ${prev.endKm})` });
+      }
+    }
+
+    // High OT: more than 4 hours (non-Outstation)
+    if (d['Duty Type'] !== 'Outstation') {
+      const a = calcDutyAllowance(d);
+      if (a.overtimeHours > 4) flags.push({ type: 'high_ot', label: `${a.overtimeHours.toFixed(1)}h OT` });
+    }
+
+    // No attendance check-in on duty day (Beta — only shown when attendance data is loaded)
+    if (allAttendance.length > 0 && d['Duty Date'] && d['Driver Name']) {
+      const hasCheckin = allAttendance.some(a =>
+        a['Driver Name'] === d['Driver Name'] &&
+        a['Action']      === 'Check-in' &&
+        (a['Date']       || '').startsWith(d['Duty Date'])
+      );
+      if (!hasCheckin) flags.push({ type: 'no_att', label: 'No check-in' });
+    }
+
+    return { ...d, _flags: flags };
+  });
+}
+
+// ── Anomaly panel ──────────────────────────────────────────────────
+function renderAnomalyPanel(flagged) {
+  const panel = el('anomalyPanel');
+  const bad   = flagged.filter(d => d._flags && d._flags.length > 0);
+
+  if (!bad.length) { panel.style.display = 'none'; return; }
+
+  const counts = { late: 0, km_gap: 0, high_ot: 0, no_att: 0 };
+  bad.forEach(d => d._flags.forEach(f => { if (f.type in counts) counts[f.type]++; }));
+
+  const parts = [
+    counts.late    && `⏰ ${counts.late} late submission${counts.late > 1 ? 's' : ''}`,
+    counts.km_gap  && `📉 ${counts.km_gap} km gap${counts.km_gap > 1 ? 's' : ''}`,
+    counts.high_ot && `⚡ ${counts.high_ot} high OT`,
+    counts.no_att  && `📍 ${counts.no_att} missing check-in (Beta)`
+  ].filter(Boolean).join(' · ');
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <strong style="color:#92400e;white-space:nowrap">⚠️ ${bad.length} dut${bad.length > 1 ? 'ies' : 'y'} flagged</strong>
+      <span style="color:#78350f;font-size:13px">${parts}</span>
+    </div>`;
+}
+
 // ── Duties table ───────────────────────────────────────────────────
+const FLAG_STYLE = {
+  late:    { bg: '#fef3c7', color: '#92400e', border: '#f59e0b' },
+  km_gap:  { bg: '#fee2e2', color: '#991b1b', border: '#dc2626' },
+  high_ot: { bg: '#fef3c7', color: '#92400e', border: '#f59e0b' },
+  no_att:  { bg: '#f3f4f6', color: '#4b5563', border: '#9ca3af' }
+};
+
 function renderDuties(duties) {
   el('dutiesCount').textContent = duties.length + ' duties';
   if (!duties.length) {
     el('dutiesBody').innerHTML =
-      '<tr><td colspan="11" class="empty-cell"><div class="empty-icon">📋</div>No duties found</td></tr>';
+      '<tr><td colspan="12" class="empty-cell"><div class="empty-icon">📋</div>No duties found</td></tr>';
     return;
   }
 
   el('dutiesBody').innerHTML = duties.map(d => {
-    const a    = calcDutyAllowance(d);
-    const exp  = +d['Total Expenses'] || 0;
-    const fuel = d['Filled Fuel'] === 'Yes';
-    return `<tr>
+    const a     = calcDutyAllowance(d);
+    const exp   = +d['Total Expenses'] || 0;
+    const fuel  = d['Filled Fuel'] === 'Yes';
+    const flags = d._flags || [];
+
+    const flagBadges = flags.map(f => {
+      const s = FLAG_STYLE[f.type] || FLAG_STYLE.no_att;
+      return `<span style="display:inline-block;background:${s.bg};color:${s.color};border:1px solid ${s.border};border-radius:10px;font-size:10px;padding:1px 7px;white-space:nowrap;margin:1px">${f.label}</span>`;
+    }).join('');
+
+    const rowBg = flags.some(f => f.type === 'km_gap') ? 'background:#fff5f5' :
+                  flags.length                          ? 'background:#fffbeb' : '';
+
+    return `<tr${rowBg ? ` style="${rowBg}"` : ''}>
       <td>${fmtDate(d['Duty Date'])}${a.isSunday ? ' <span class="badge badge-yellow">Sun</span>' : ''}</td>
       <td>${d['Driver Name'] || '—'}</td>
       <td style="font-size:12px;color:var(--text-muted)">${d['Vehicle Number'] || '—'}</td>
@@ -185,8 +286,34 @@ function renderDuties(duties) {
       <td>${fmtDuration2(d['Duration (mins)'])}</td>
       <td>${exp ? fmtINR(exp) : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td>${fuel ? `<span class="badge badge-green">⛽ ${fmtINR(d['Fuel Amount'])}</span>` : '—'}</td>
-      <td><strong style="color:var(--primary)">${fmtINR(a.totalAllowance)}</strong>${a.isSunday ? '<br><span style="font-size:11px;color:var(--warning)">+₹1k Sun</span>':''}
-      </td>
+      <td><strong style="color:var(--primary)">${fmtINR(a.totalAllowance)}</strong>${a.isSunday ? '<br><span style="font-size:11px;color:var(--warning)">+₹1k Sun</span>' : ''}</td>
+      <td>${flagBadges || '<span style="color:var(--text-muted)">—</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Attendance tab ─────────────────────────────────────────────────
+function renderAttendanceTab() {
+  const tbody = el('attBody');
+  if (!allAttendance.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-cell">No attendance records found</td></tr>';
+    return;
+  }
+
+  const sorted = [...allAttendance].sort((a, b) =>
+    ((b['Date'] || '') + (b['Time'] || '')).localeCompare((a['Date'] || '') + (a['Time'] || ''))
+  );
+
+  tbody.innerHTML = sorted.map(r => {
+    const isIn = r['Action'] === 'Check-in';
+    const lat  = parseFloat(r['Latitude']);
+    const lng  = parseFloat(r['Longitude']);
+    return `<tr>
+      <td>${fmtDate(r['Date'])}</td>
+      <td>${r['Driver Name'] || '—'}</td>
+      <td><span style="font-weight:600;color:${isIn ? '#16a34a' : '#dc2626'}">${isIn ? '▶' : '⏹'} ${r['Action']}</span></td>
+      <td>${r['Time'] || '—'}</td>
+      <td style="font-size:11px;color:var(--text-muted)">${!isNaN(lat) ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : '—'}</td>
     </tr>`;
   }).join('');
 }
@@ -196,13 +323,10 @@ function calcSalaryReport() {
   const ym = el('salMonth').value;
   if (!ym) { alert('Select a month first'); return; }
 
-  const tbody = el('salBody');
-  const drivers = CONFIG.DRIVERS;
-
   let html = '';
   let grandBasic=0, grandOT=0, grandOut=0, grandSun=0, grandGross=0;
 
-  drivers.forEach(name => {
+  CONFIG.DRIVERS.forEach(name => {
     const s = calcMonthlySalary(allDuties, name, ym);
     grandBasic += s.basicSalary;
     grandOT    += s.overtimePay;
@@ -222,8 +346,7 @@ function calcSalaryReport() {
   });
 
   html += `<tr class="salary-row-total">
-    <td><strong>TOTAL</strong></td>
-    <td></td>
+    <td><strong>TOTAL</strong></td><td></td>
     <td>${fmtINR(grandBasic)}</td>
     <td>${fmtINR(grandOT)}</td>
     <td>${fmtINR(grandOut)}</td>
@@ -231,18 +354,14 @@ function calcSalaryReport() {
     <td><strong>${fmtINR(grandGross)}</strong></td>
   </tr>`;
 
-  tbody.innerHTML = html;
-
-  // Also show per-duty breakdown
+  el('salBody').innerHTML = html;
   renderSalaryBreakdown(ym);
 }
 
 function renderSalaryBreakdown(ym) {
   const driver = el('salDriver').value;
   const duties = allDuties.filter(d => {
-    const date   = d['Duty Date']   || '';
-    const drvr   = d['Driver Name'] || '';
-    return date.startsWith(ym) && (!driver || drvr === driver);
+    return (d['Duty Date'] || '').startsWith(ym) && (!driver || (d['Driver Name'] || '') === driver);
   }).sort((a,b) => (a['Duty Date']||'').localeCompare(b['Duty Date']||''));
 
   if (!duties.length) {
@@ -252,15 +371,14 @@ function renderSalaryBreakdown(ym) {
 
   el('salDetailBody').innerHTML = duties.map(d => {
     const a = calcDutyAllowance(d);
-    const dayLabel = a.isSunday ? ' 🌟' : '';
     return `<tr>
-      <td>${fmtDate(d['Duty Date'])}${dayLabel}</td>
+      <td>${fmtDate(d['Duty Date'])}${a.isSunday ? ' 🌟' : ''}</td>
       <td>${d['Driver Name'] || '—'}</td>
       <td><span class="badge badge-blue">${d['Duty Type'] || '—'}</span></td>
       <td>${fmtTimeRange(d)}</td>
       <td>${a.overtimeHours > 0 ? a.overtimeHours.toFixed(2) + ' h' : '—'}</td>
       <td>${a.overtimeAmount ? fmtINR(a.overtimeAmount) : '—'}</td>
-      <td>${a.outstationAllowance ? fmtINR(a.outstationAllowance) + (a.outstationDays===2?' (×2)':'') : '—'}</td>
+      <td>${a.outstationAllowance ? fmtINR(a.outstationAllowance) + (a.outstationDays === 2 ? ' (×2)' : '') : '—'}</td>
       <td>${a.isSunday ? fmtINR(a.sundayBonus) : '—'}</td>
     </tr>`;
   }).join('');
@@ -299,9 +417,7 @@ function renderVendorReport() {
       <td style="text-align:center">${s.duties.length}</td>
       <td>${breakdown}</td>
       <td>${s.km.toLocaleString('en-IN')} km</td>
-      <td>
-        ${s.duties.map(d => `<span class="badge badge-blue" style="margin:2px">${d['Vendor Duty Number']||'N/A'}</span>`).join(' ')}
-      </td>
+      <td>${s.duties.map(d => `<span class="badge badge-blue" style="margin:2px">${d['Vendor Duty Number']||'N/A'}</span>`).join(' ')}</td>
     </tr>`;
   }).join('');
 }
@@ -310,18 +426,19 @@ function renderVendorReport() {
 function switchTab(tabId) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === tabId));
+  if (tabId === 'tabAttendance') renderAttendanceTab();
 }
 
 // ── Export CSV ─────────────────────────────────────────────────────
 function exportCSV() {
   if (!allDuties.length) { alert('No data to export'); return; }
-  const headers = Object.keys(allDuties[0]);
+  const headers = Object.keys(allDuties[0]).filter(k => k !== '_flags');
   const csv = [
     headers.join(','),
     ...allDuties.map(r => headers.map(h => JSON.stringify(r[h] ?? '')).join(','))
   ].join('\n');
   const a = Object.assign(document.createElement('a'), {
-    href: URL.createObjectURL(new Blob([csv], {type:'text/csv'})),
+    href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
     download: 'tresa-duties-' + new Date().toISOString().split('T')[0] + '.csv'
   });
   a.click();
@@ -334,12 +451,10 @@ function el(id) { return document.getElementById(id); }
 
 function fmtDate(s) {
   if (!s) return '—';
-  try {
-    return new Date(s+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
-  } catch { return s; }
+  try { return new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }); }
+  catch { return s; }
 }
 
-// Shows "HH:MM – HH:MM" for same-day, or "HH:MM (date) – HH:MM (date)" for overnight
 function fmtTimeRange(d) {
   const st = d['Start Time'] || '';
   const et = d['End Time']   || '';
@@ -347,11 +462,11 @@ function fmtTimeRange(d) {
   const ed = d['End Date']   || d['Duty Date'] || '';
   if (!st && !et) return '—';
   if (sd && ed && sd !== ed) {
-    const shortDate = s => {
-      try { return new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }); }
+    const short = s => {
+      try { return new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day:'2-digit', month:'short' }); }
       catch { return s; }
     };
-    return `${st} <span style="font-size:11px;color:var(--text-muted)">${shortDate(sd)}</span> – ${et} <span style="font-size:11px;color:var(--text-muted)">${shortDate(ed)}</span>`;
+    return `${st} <span style="font-size:11px;color:var(--text-muted)">${short(sd)}</span> – ${et} <span style="font-size:11px;color:var(--text-muted)">${short(ed)}</span>`;
   }
   return `${st || '—'} – ${et || '—'}`;
 }
@@ -359,5 +474,5 @@ function fmtTimeRange(d) {
 function fmtDuration2(mins) {
   if (mins === '' || mins === undefined || mins === null) return '—';
   const m = Math.round(+mins);
-  return Math.floor(m/60) + 'h ' + (m%60) + 'm';
+  return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
 }

@@ -9,8 +9,9 @@
  * doGet   → ?type=attendance returns attendance; default returns duties
  */
 
-const SHEET_NAME = 'Duties';
+const SHEET_NAME            = 'Duties';
 const ATTENDANCE_SHEET_NAME = 'Attendance';
+const OWNER_EMAIL           = 'guptayashu99@gmail.com';
 
 // Column headers – order must match appendRow() below
 const HEADERS = [
@@ -81,6 +82,27 @@ function doPostDuty_(data) {
     data.filledFuel ? (parseFloat(data.fuelLitres)   || 0) : '',
     data.filledFuel ? (parseFloat(data.fuelOdometer) || '') : ''
   ]);
+
+  // Email notification to owner
+  try {
+    const kmDriven = (parseFloat(data.endKm) || 0) - (parseFloat(data.startKm) || 0);
+    MailApp.sendEmail(OWNER_EMAIL,
+      `[Tresa] New Duty – ${data.driverName} · ${data.dutyDate}`,
+      [
+        `Driver   : ${data.driverName}`,
+        `Vehicle  : ${data.vehicleNumber}`,
+        `Date     : ${data.dutyDate}`,
+        `Vendor   : ${data.vendor} (${data.vendorDutyNumber})`,
+        `Type     : ${data.dutyType}`,
+        `Start    : ${data.startDate} ${data.startTime}  →  End: ${data.endDate} ${data.endTime}`,
+        `Km       : ${data.startKm} → ${data.endKm}  (${kmDriven} km)`,
+        `Expenses : ₹${expenses}`,
+        data.filledFuel ? `Fuel     : ₹${data.fuelAmount}  ·  ${data.fuelLitres} L` : '',
+        '',
+        `Submitted: ${new Date()}`
+      ].filter(Boolean).join('\n')
+    );
+  } catch (_) { /* never fail a submission because of email */ }
 
   return jsonResp_({ success: true });
 }
