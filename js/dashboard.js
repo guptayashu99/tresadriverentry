@@ -722,14 +722,11 @@ function renderInvPricing() {
   const a = p.airport    || {};
   const o = p.outstation || {};
   el('pHourlyBase').value    = h.basePrice ?? '';
-  el('pHourlyKm').value      = h.kmRate    ?? '';
-  el('pHourlyHr').value      = h.hrRate    ?? '';
   el('pAirportBase').value   = a.basePrice ?? '';
-  el('pAirportKm').value     = a.kmRate    ?? '';
-  el('pAirportHr').value     = a.hrRate    ?? '';
-  el('pOutstationDay').value     = o.dayRate     ?? '';
-  el('pOutstationMinKm').value   = o.minKmPerDay ?? '';
-  el('pOutstationExtraKm').value = o.extraKmRate ?? '';
+  el('pOutstationDay').value   = o.dayRate     ?? '';
+  el('pOutstationMinKm').value = o.minKmPerDay ?? '';
+  el('pExtraKmRate').value   = p.extraKmRate ?? '';
+  el('pExtraHrRate').value   = p.extraHrRate ?? '';
 
   // Populate driver filter once
   const sel = el('invDriverFilter');
@@ -747,21 +744,14 @@ function saveInvPricing() {
   p.cgst    = parseFloat(el('invCgstPct').value) || 0;
   p.sgst    = parseFloat(el('invSgstPct').value) || 0;
   p.hsnCode = el('invHsnCode').value.trim() || '9966';
-  p.hourly = {
-    basePrice: parseFloat(el('pHourlyBase').value) || 0,
-    kmRate:    parseFloat(el('pHourlyKm').value)   || 0,
-    hrRate:    parseFloat(el('pHourlyHr').value)   || 0,
-  };
-  p.airport = {
-    basePrice: parseFloat(el('pAirportBase').value) || 0,
-    kmRate:    parseFloat(el('pAirportKm').value)   || 0,
-    hrRate:    parseFloat(el('pAirportHr').value)   || 0,
-  };
+  p.hourly     = { basePrice: parseFloat(el('pHourlyBase').value)  || 0 };
+  p.airport    = { basePrice: parseFloat(el('pAirportBase').value) || 0 };
   p.outstation = {
-    dayRate:     parseFloat(el('pOutstationDay').value)     || 0,
-    minKmPerDay: parseFloat(el('pOutstationMinKm').value)   || 0,
-    extraKmRate: parseFloat(el('pOutstationExtraKm').value) || 0,
+    dayRate:     parseFloat(el('pOutstationDay').value)   || 0,
+    minKmPerDay: parseFloat(el('pOutstationMinKm').value) || 0,
   };
+  p.extraKmRate = parseFloat(el('pExtraKmRate').value) || 0;
+  p.extraHrRate = parseFloat(el('pExtraHrRate').value) || 0;
   localStorage.setItem(INV_PRICING_KEY, JSON.stringify(p));
   const btn = document.querySelector('[onclick="saveInvPricing()"]');
   btn.textContent = '✓ Saved'; setTimeout(() => btn.textContent = 'Save Pricing', 1500);
@@ -854,11 +844,11 @@ function openInvForm(idx) {
     el('invOutPerDayRate').value  = pkgData.dayRate     || '';
     el('invOutMinKmPerDay').value = pkgData.minKmPerDay || '';
     el('invOutActualKm').value    = km                  || '';
-    el('invOutExtraKmRate').value = pkgData.extraKmRate || '';
+    el('invOutExtraKmRate').value = p.extraKmRate       || '';
   } else {
     el('invPkgCost').value     = pkgData.basePrice || '';
-    el('invExtraKmRate').value = pkgData.kmRate    || '';
-    el('invExtraHrRate').value = pkgData.hrRate    || '';
+    el('invExtraKmRate').value = p.extraKmRate     || '';
+    el('invExtraHrRate').value = p.extraHrRate     || '';
   }
 
   // Pre-fill expenses from duty
@@ -893,11 +883,11 @@ function onInvPkgTypeChange() {
   if (isOut) {
     el('invOutPerDayRate').value  = pkgData.dayRate     || '';
     el('invOutMinKmPerDay').value = pkgData.minKmPerDay || '';
-    el('invOutExtraKmRate').value = pkgData.extraKmRate || '';
+    el('invOutExtraKmRate').value = p.extraKmRate       || '';
   } else {
     el('invPkgCost').value     = pkgData.basePrice || '';
-    el('invExtraKmRate').value = pkgData.kmRate    || '';
-    el('invExtraHrRate').value = pkgData.hrRate    || '';
+    el('invExtraKmRate').value = p.extraKmRate     || '';
+    el('invExtraHrRate').value = p.extraHrRate     || '';
   }
   updateInvTotal();
 }

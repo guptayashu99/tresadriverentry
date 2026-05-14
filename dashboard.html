@@ -419,7 +419,7 @@
             </div>
           </div>
 
-          <div class="grid grid-3">
+          <div class="grid grid-3" style="margin-bottom:20px">
             <!-- Hourly Rental -->
             <div style="border:1px solid var(--border);border-radius:10px;padding:16px">
               <div style="font-weight:700;font-size:14px;margin-bottom:2px">🕐 8 Hrs / 80 Kms</div>
@@ -427,14 +427,6 @@
               <div class="field">
                 <label>Package Price (₹)</label>
                 <input type="number" id="pHourlyBase" min="0" placeholder="0">
-              </div>
-              <div class="field" style="margin-top:10px">
-                <label>Extra KM Rate (₹/km)</label>
-                <input type="number" id="pHourlyKm" min="0" placeholder="0">
-              </div>
-              <div class="field" style="margin-top:10px">
-                <label>Extra Hour Rate (₹/hr)</label>
-                <input type="number" id="pHourlyHr" min="0" placeholder="0">
               </div>
             </div>
 
@@ -445,14 +437,6 @@
               <div class="field">
                 <label>Package Price (₹)</label>
                 <input type="number" id="pAirportBase" min="0" placeholder="0">
-              </div>
-              <div class="field" style="margin-top:10px">
-                <label>Extra KM Rate (₹/km)</label>
-                <input type="number" id="pAirportKm" min="0" placeholder="0">
-              </div>
-              <div class="field" style="margin-top:10px">
-                <label>Extra Hour Rate (₹/hr)</label>
-                <input type="number" id="pAirportHr" min="0" placeholder="0">
               </div>
             </div>
 
@@ -468,9 +452,19 @@
                 <label>Min KM per Day</label>
                 <input type="number" id="pOutstationMinKm" min="0" placeholder="250">
               </div>
-              <div class="field" style="margin-top:10px">
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:12px">Extra Rates (applies to all packages)</div>
+            <div class="grid grid-2" style="max-width:400px">
+              <div class="field">
                 <label>Extra KM Rate (₹/km)</label>
-                <input type="number" id="pOutstationExtraKm" min="0" placeholder="0">
+                <input type="number" id="pExtraKmRate" min="0" placeholder="0">
+              </div>
+              <div class="field">
+                <label>Extra Hour Rate (₹/hr)</label>
+                <input type="number" id="pExtraHrRate" min="0" placeholder="0">
               </div>
             </div>
           </div>
