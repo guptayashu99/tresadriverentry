@@ -445,12 +445,16 @@
               <div style="font-weight:700;font-size:14px;margin-bottom:2px">🛣️ Outstation</div>
               <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Per day · min km included · extra km charged</div>
               <div class="field">
-                <label>Per Day Rate (₹/day)</label>
-                <input type="number" id="pOutstationDay" min="0" placeholder="0">
+                <label>Outstation KM Rate (₹/km)</label>
+                <input type="number" id="pOutstationKmRate" min="0" placeholder="0" oninput="calcOutstationPerDay()">
               </div>
               <div class="field" style="margin-top:10px">
                 <label>Min KM per Day</label>
-                <input type="number" id="pOutstationMinKm" min="0" placeholder="250">
+                <input type="number" id="pOutstationMinKm" min="0" placeholder="250" oninput="calcOutstationPerDay()">
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label>Per Day Price (₹)</label>
+                <input type="number" id="pOutstationPerDay" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)" placeholder="Auto-calculated">
               </div>
             </div>
           </div>
@@ -633,8 +637,8 @@
                   <input type="number" id="invOutDays" placeholder="1" min="1" step="1" oninput="updateInvTotal()">
                 </div>
                 <div class="field">
-                  <label>Per Day Rate (₹/day) <span class="req">*</span></label>
-                  <input type="number" id="invOutPerDayRate" placeholder="Required" min="0" oninput="updateInvTotal()">
+                  <label>Per Day Price (₹)</label>
+                  <input type="number" id="invOutPerDayRate" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)" placeholder="From pricing">
                 </div>
                 <div class="field">
                   <label>Base Cost (₹)</label>
@@ -678,11 +682,21 @@
               <div class="field"><label>Delhi MCD (₹)</label><input type="number" id="invMcd"       min="0" value="0" oninput="updateInvTotal()"></div>
               <div class="field"><label>Miscellaneous (₹)</label><input type="number" id="invMisc"  min="0" value="0" oninput="updateInvTotal()"></div>
               <div class="field"><label>Driver Allowance (₹)</label><input type="number" id="invDriverAllow" min="0" value="0" oninput="updateInvTotal()"></div>
-              <div class="field"><label>Discount (₹)</label><input type="number" id="invDiscount"   min="0" value="0" oninput="updateInvTotal()"></div>
             </div>
             <div class="field" style="margin-top:14px">
               <label>Comments</label>
               <input type="text" id="invComments" placeholder="Any additional notes for the invoice">
+            </div>
+          </div>
+
+          <!-- Discount -->
+          <div class="card" style="margin-bottom:16px">
+            <div class="section-title"><span class="section-icon">🏷️</span> Discount</div>
+            <div class="grid" style="max-width:300px">
+              <div class="field">
+                <label>Discount Amount (₹)</label>
+                <input type="number" id="invDiscount" min="0" value="0" oninput="updateInvTotal()">
+              </div>
             </div>
           </div>
 

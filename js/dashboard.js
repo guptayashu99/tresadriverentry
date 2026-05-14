@@ -706,6 +706,12 @@ const INV_PACKAGES = [
   { key: 'outstation', label: 'Outstation',        subLabel: 'Per KM rate',    hasFixed: false },
 ];
 
+function calcOutstationPerDay() {
+  const kmRate   = parseFloat(el('pOutstationKmRate').value) || 0;
+  const minKmDay = parseFloat(el('pOutstationMinKm').value)  || 0;
+  el('pOutstationPerDay').value = (kmRate && minKmDay) ? Math.round(kmRate * minKmDay) : '';
+}
+
 function getInvPricing() {
   try { return JSON.parse(localStorage.getItem(INV_PRICING_KEY)) || {}; } catch { return {}; }
 }
@@ -721,8 +727,9 @@ function renderInvPricing() {
   const o = p.outstation || {};
   el('pHourlyBase').value    = h.basePrice ?? '';
   el('pAirportBase').value   = a.basePrice ?? '';
-  el('pOutstationDay').value   = o.dayRate     ?? '';
-  el('pOutstationMinKm').value = o.minKmPerDay ?? '';
+  el('pOutstationKmRate').value = o.kmRate      ?? '';
+  el('pOutstationMinKm').value  = o.minKmPerDay ?? '';
+  calcOutstationPerDay();
   el('pExtraKmRate').value   = p.extraKmRate ?? '';
   el('pExtraHrRate').value   = p.extraHrRate ?? '';
 
@@ -745,8 +752,8 @@ function saveInvPricing() {
   p.hourly     = { basePrice: parseFloat(el('pHourlyBase').value)  || 0 };
   p.airport    = { basePrice: parseFloat(el('pAirportBase').value) || 0 };
   p.outstation = {
-    dayRate:     parseFloat(el('pOutstationDay').value)   || 0,
-    minKmPerDay: parseFloat(el('pOutstationMinKm').value) || 0,
+    kmRate:      parseFloat(el('pOutstationKmRate').value) || 0,
+    minKmPerDay: parseFloat(el('pOutstationMinKm').value)  || 0,
   };
   p.extraKmRate = parseFloat(el('pExtraKmRate').value) || 0;
   p.extraHrRate = parseFloat(el('pExtraHrRate').value) || 0;
@@ -838,11 +845,12 @@ function openInvForm(idx) {
   el('invExtraHr').value  = '';
 
   if (pkgKey === 'outstation') {
+    const perDay = Math.round((pkgData.kmRate || 0) * (pkgData.minKmPerDay || 0));
     el('invOutDays').value        = 1;
-    el('invOutPerDayRate').value  = pkgData.dayRate     || '';
+    el('invOutPerDayRate').value  = perDay || '';
     el('invOutMinKmPerDay').value = pkgData.minKmPerDay || '';
-    el('invOutActualKm').value    = km                  || '';
-    el('invOutExtraKmRate').value = p.extraKmRate       || '';
+    el('invOutActualKm').value    = km || '';
+    el('invOutExtraKmRate').value = pkgData.kmRate || '';
   } else {
     el('invPkgCost').value     = pkgData.basePrice || '';
     el('invExtraKmRate').value = p.extraKmRate     || '';
@@ -879,9 +887,10 @@ function onInvPkgTypeChange() {
   el('invOutstationPkg').style.display = isOut ? 'block' : 'none';
 
   if (isOut) {
-    el('invOutPerDayRate').value  = pkgData.dayRate     || '';
+    const perDay = Math.round((pkgData.kmRate || 0) * (pkgData.minKmPerDay || 0));
+    el('invOutPerDayRate').value  = perDay || '';
     el('invOutMinKmPerDay').value = pkgData.minKmPerDay || '';
-    el('invOutExtraKmRate').value = p.extraKmRate       || '';
+    el('invOutExtraKmRate').value = pkgData.kmRate      || '';
   } else {
     el('invPkgCost').value     = pkgData.basePrice || '';
     el('invExtraKmRate').value = p.extraKmRate     || '';
@@ -1038,7 +1047,7 @@ async function generateInvoice() {
     outExtraKmCost = outExtraKm * exKmRate;
     pkgCost = outBaseCost + outExtraKmCost;
     if (dayRate <= 0) {
-      el('invErrMsg').textContent = '❌ Per Day Rate is required and must be greater than ₹0.';
+      el('invErrMsg').textContent = '❌ Set the Outstation KM Rate and Min KM per Day in Package Pricing first.';
       el('invErrMsg').style.display = 'block'; return;
     }
     if (days <= 0) {
