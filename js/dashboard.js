@@ -223,7 +223,7 @@ function flagAnomalies(duties) {
     if (allAttendance.length > 0 && d['Duty Date'] && d['Driver Name']) {
       const hasCheckin = allAttendance.some(a =>
         a['Driver Name'] === d['Driver Name'] &&
-        a['Action']      === 'Check-in' &&
+        a['In Time']     &&
         (a['Date']       || '').startsWith(d['Duty Date'])
       );
       if (!hasCheckin) flags.push({ type: 'no_att', label: 'No check-in' });
@@ -314,19 +314,17 @@ function renderAttendanceTab() {
   }
 
   const sorted = [...allAttendance].sort((a, b) =>
-    ((b['Date'] || '') + (b['Time'] || '')).localeCompare((a['Date'] || '') + (a['Time'] || ''))
+    ((b['Date'] || '') + (b['In Time'] || '')).localeCompare((a['Date'] || '') + (a['In Time'] || ''))
   );
 
   tbody.innerHTML = sorted.map(r => {
-    const isIn = r['Action'] === 'Check-in';
-    const lat  = parseFloat(r['Latitude']);
-    const lng  = parseFloat(r['Longitude']);
+    const isOpen = !r['Out Time'];
     return `<tr>
       <td>${fmtDate(r['Date'])}</td>
       <td>${r['Driver Name'] || '—'}</td>
-      <td><span style="font-weight:600;color:${isIn ? '#16a34a' : '#dc2626'}">${isIn ? '▶' : '⏹'} ${r['Action']}</span></td>
-      <td>${r['Time'] || '—'}</td>
-      <td style="font-size:11px;color:var(--text-muted)">${!isNaN(lat) ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : '—'}</td>
+      <td><span style="font-weight:600;color:#16a34a">▶ ${r['In Time'] || '—'}</span></td>
+      <td>${r['Out Time'] ? `<span style="font-weight:600;color:#dc2626">⏹ ${r['Out Time']}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+      <td>${r['Total Duty Hours'] || (isOpen ? '<span style="color:#f59e0b">In progress</span>' : '—')}</td>
     </tr>`;
   }).join('');
 }

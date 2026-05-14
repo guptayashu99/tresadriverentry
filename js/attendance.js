@@ -85,7 +85,7 @@ async function loadTodayStatus() {
     );
 
     const last = todayRecords[todayRecords.length - 1];
-    currentStatus = last ? (last['Action'] === 'Check-in' ? 'in' : 'out') : null;
+    currentStatus = last ? (last['Out Time'] ? 'out' : 'in') : null;
   } catch {
     currentStatus = null;
   }
@@ -211,8 +211,21 @@ async function handleAction() {
       })
     });
 
-    currentStatus = action === 'Check-in' ? 'in' : 'out';
-    todayRecords.push({ 'Driver Name': currentDriver, 'Action': action, 'Date': date, 'Time': time });
+    if (action === 'Check-in') {
+      currentStatus = 'in';
+      todayRecords.push({ 'Driver Name': currentDriver, 'Date': date, 'In Time': time, 'Out Time': '', 'Total Duty Hours': '' });
+    } else {
+      currentStatus = 'out';
+      if (todayRecords.length) {
+        const last = todayRecords[todayRecords.length - 1];
+        last['Out Time'] = time;
+        const [inH,  inM]  = (last['In Time'] || '00:00').split(':').map(Number);
+        const [outH, outM] = time.split(':').map(Number);
+        let diff = (outH * 60 + outM) - (inH * 60 + inM);
+        if (diff < 0) diff += 1440;
+        last['Total Duty Hours'] = Math.floor(diff / 60) + 'h ' + (diff % 60) + 'm';
+      }
+    }
     updateActionButton();
     renderLog();
   } catch {
@@ -230,11 +243,14 @@ function renderLog() {
     return;
   }
   el.innerHTML = todayRecords.map(r => {
-    const isIn  = r['Action'] === 'Check-in';
-    const badge = isIn
-      ? '<span class="badge-checkin">▶ Check-in</span>'
-      : '<span class="badge-checkout">⏹ Check-out</span>';
-    return `<div class="log-row">${badge}<span style="color:var(--text-muted)">${r['Time'] || '—'}</span></div>`;
+    const isOpen = !r['Out Time'];
+    return `<div class="log-row">
+      <span>
+        <span class="badge-checkin">▶ In</span> ${r['In Time'] || '—'}
+        ${!isOpen ? `&nbsp;&nbsp;<span class="badge-checkout">⏹ Out</span> ${r['Out Time']}` : ''}
+      </span>
+      <span style="color:var(--text-muted)">${r['Total Duty Hours'] || (isOpen ? 'In progress…' : '')}</span>
+    </div>`;
   }).join('');
 }
 

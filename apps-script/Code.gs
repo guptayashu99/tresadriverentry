@@ -25,7 +25,7 @@ const HEADERS = [
 ];
 
 const ATTENDANCE_HEADERS = [
-  'Timestamp', 'Driver Name', 'Action', 'Date', 'Time', 'Latitude', 'Longitude'
+  'Timestamp', 'Driver Name', 'Date', 'In Time', 'Out Time', 'Total Duty Hours'
 ];
 
 const PAYMENT_HEADERS = [
@@ -131,15 +131,53 @@ function doPostPayment_(data) {
 
 function doPostAttendance_(data) {
   const sheet = getOrCreateAttendanceSheet_();
-  sheet.appendRow([
-    new Date(),
-    data.driverName       || '',
-    data.attendanceAction || '',
-    data.date             || '',
-    data.time             || '',
-    data.latitude         || '',
-    data.longitude        || ''
-  ]);
+
+  if (data.attendanceAction === 'Check-in') {
+    sheet.appendRow([
+      new Date(),
+      data.driverName || '',
+      data.date       || '',
+      data.time       || '',
+      '',
+      ''
+    ]);
+  } else {
+    // Checkout: find the last open row (no Out Time) for this driver today
+    const rows       = sheet.getDataRange().getValues();
+    const headers    = rows[0];
+    const driverIdx  = headers.indexOf('Driver Name');
+    const dateIdx    = headers.indexOf('Date');
+    const inTimeIdx  = headers.indexOf('In Time');
+    const outTimeIdx = headers.indexOf('Out Time');
+    const totalIdx   = headers.indexOf('Total Duty Hours');
+
+    let targetRow = -1;
+    for (let i = rows.length - 1; i >= 1; i--) {
+      if (rows[i][driverIdx] === (data.driverName || '') &&
+          rows[i][dateIdx]   === (data.date       || '') &&
+          !rows[i][outTimeIdx]) {
+        targetRow = i + 1; // 1-indexed
+        break;
+      }
+    }
+
+    if (targetRow === -1) return jsonResp_({ success: false, error: 'No open check-in found' });
+
+    const inTime  = rows[targetRow - 1][inTimeIdx] || '';
+    const outTime = data.time || '';
+    let totalHours = '';
+    if (inTime && outTime) {
+      const [inH,  inM]  = inTime.split(':').map(Number);
+      const [outH, outM] = outTime.split(':').map(Number);
+      let diff = (outH * 60 + outM) - (inH * 60 + inM);
+      if (diff < 0) diff += 1440;
+      totalHours = Math.floor(diff / 60) + 'h ' + (diff % 60) + 'm';
+    }
+
+    sheet.getRange(targetRow, outTimeIdx + 1).setValue(outTime);
+    sheet.getRange(targetRow, totalIdx   + 1).setValue(totalHours);
+  }
+
   return jsonResp_({ success: true });
 }
 
@@ -191,12 +229,13 @@ function doGetAttendance_() {
   const rows    = sheet.getDataRange().getValues();
   const headers = rows[0];
   const tz      = Session.getScriptTimeZone();
+  const timeColumns = new Set(['In Time', 'Out Time']);
   const data    = rows.slice(1).map(row => {
     const obj = {};
     headers.forEach((h, i) => {
       let v = row[i];
       if (v instanceof Date) {
-        if (h === 'Time') {
+        if (timeColumns.has(h)) {
           v = Utilities.formatDate(v, tz, 'HH:mm');
         } else if (h === 'Timestamp') {
           v = Utilities.formatDate(v, tz, 'yyyy-MM-dd HH:mm:ss');
