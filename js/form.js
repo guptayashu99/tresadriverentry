@@ -1,6 +1,7 @@
 /* Entry form logic — runs on index.html */
 
-let fuelFilled = false;
+let fuelFilled   = false;
+let manualSlip   = false;
 let existingDuties = [];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -33,8 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Form submit
   document.getElementById('dutyForm').addEventListener('submit', handleSubmit);
 
-  // Default: no fuel
+  // Defaults
   setFuel(false);
+  setManualSlip(false);
 
   // Warn if not configured
   if (!CONFIG.APPS_SCRIPT_URL) showBanner();
@@ -75,6 +77,18 @@ function splitDT(val) {
   if (!val) return { date: '', time: '' };
   const [date, time] = val.split('T');
   return { date, time };
+}
+
+// ── Manual Slip toggle ─────────────────────────────────────────────
+function setManualSlip(yes) {
+  manualSlip = yes;
+  document.getElementById('btnSlipYes').classList.toggle('active',  yes);
+  document.getElementById('btnSlipNo') .classList.toggle('active', !yes);
+  const field = document.getElementById('slipNoField');
+  field.style.display = yes ? 'block' : 'none';
+  const input = document.getElementById('manualSlipNo');
+  yes ? input.setAttribute('required', '') : input.removeAttribute('required');
+  if (!yes) input.value = '';
 }
 
 // ── Fuel toggle ────────────────────────────────────────────────────
@@ -160,7 +174,9 @@ async function handleSubmit(e) {
     filledFuel:       fuelFilled,
     fuelAmount:       fuelFilled ? (+form.fuelAmount.value   || 0) : null,
     fuelLitres:       fuelFilled ? (+form.fuelLitres.value   || 0) : null,
-    fuelOdometer:     fuelFilled ? (+form.fuelOdometer.value || 0) : null
+    fuelOdometer:     fuelFilled ? (+form.fuelOdometer.value || 0) : null,
+    manualSlip,
+    manualSlipNo:     manualSlip ? (form.manualSlipNo.value.trim() || '') : ''
   };
 
   // Duplicate check — same vehicle + overlapping datetime range
@@ -275,6 +291,7 @@ function submitAnother() {
   document.getElementById('otPreview').style.display = 'none';
   document.getElementById('expTotal').textContent = '₹0';
   setFuel(false);
+  setManualSlip(false);
 }
 
 // Returns true if two datetime ranges overlap.

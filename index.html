@@ -60,6 +60,19 @@
       <!-- Duty Details -->
       <div class="card">
         <div class="section-title"><span class="section-icon">📋</span> Duty Details</div>
+        <div class="toggle-row" style="margin-bottom:16px">
+          <label>Duty closed via WTI app?</label>
+          <div class="toggle-group">
+            <button type="button" id="btnSlipNo"  class="toggle-btn active" onclick="setManualSlip(false)">Yes, WTI App</button>
+            <button type="button" id="btnSlipYes" class="toggle-btn"        onclick="setManualSlip(true)">No, Manual Slip</button>
+          </div>
+        </div>
+
+        <div id="slipNoField" class="field" style="display:none; margin-bottom:16px; max-width:300px">
+          <label for="manualSlipNo">Manual Duty Slip No. <span class="req">*</span></label>
+          <input type="text" id="manualSlipNo" name="manualSlipNo" placeholder="e.g. MDS-001">
+        </div>
+
         <div class="grid">
           <div class="field">
             <label for="vendor">Vendor <span class="req">*</span></label>

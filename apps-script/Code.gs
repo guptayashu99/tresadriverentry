@@ -21,7 +21,8 @@ const HEADERS = [
   'Start Km', 'Start Date', 'Start Time', 'End Km', 'End Date', 'End Time',
   'Total Km', 'Duration (mins)',
   'Parking', 'MCD', 'Toll', 'State Tax', 'Miscellaneous', 'Total Expenses',
-  'Filled Fuel', 'Fuel Amount', 'Fuel Litres', 'Fuel Odometer Reading'
+  'Filled Fuel', 'Fuel Amount', 'Fuel Litres', 'Fuel Odometer Reading',
+  'Manual Slip', 'Manual Slip No.'
 ];
 
 const ATTENDANCE_HEADERS = [
@@ -86,7 +87,9 @@ function doPostDuty_(data) {
     data.filledFuel ? 'Yes' : 'No',
     data.filledFuel ? (parseFloat(data.fuelAmount)   || 0) : '',
     data.filledFuel ? (parseFloat(data.fuelLitres)   || 0) : '',
-    data.filledFuel ? (parseFloat(data.fuelOdometer) || '') : ''
+    data.filledFuel ? (parseFloat(data.fuelOdometer) || '') : '',
+    data.manualSlip ? 'Yes' : 'No',
+    data.manualSlip ? (data.manualSlipNo || '') : ''
   ]);
 
   // Email notification to owner
