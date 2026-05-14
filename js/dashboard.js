@@ -714,8 +714,9 @@ function getInvPricing() {
 
 function renderInvPricing() {
   const p = getInvPricing();
-  el('invCgstPct').value = p.cgst ?? 2.5;
-  el('invSgstPct').value = p.sgst ?? 2.5;
+  el('invCgstPct').value = p.cgst    ?? 2.5;
+  el('invSgstPct').value = p.sgst    ?? 2.5;
+  el('invHsnCode').value = p.hsnCode ?? '9966';
 
   const h = p.hourly     || {};
   const a = p.airport    || {};
@@ -726,7 +727,9 @@ function renderInvPricing() {
   el('pAirportBase').value   = a.basePrice ?? '';
   el('pAirportKm').value     = a.kmRate    ?? '';
   el('pAirportHr').value     = a.hrRate    ?? '';
-  el('pOutstationKm').value  = o.kmRate    ?? '';
+  el('pOutstationDay').value     = o.dayRate     ?? '';
+  el('pOutstationMinKm').value   = o.minKmPerDay ?? '';
+  el('pOutstationExtraKm').value = o.extraKmRate ?? '';
 
   // Populate driver filter once
   const sel = el('invDriverFilter');
@@ -741,8 +744,9 @@ function renderInvPricing() {
 
 function saveInvPricing() {
   const p = getInvPricing();
-  p.cgst = parseFloat(el('invCgstPct').value) || 0;
-  p.sgst = parseFloat(el('invSgstPct').value) || 0;
+  p.cgst    = parseFloat(el('invCgstPct').value) || 0;
+  p.sgst    = parseFloat(el('invSgstPct').value) || 0;
+  p.hsnCode = el('invHsnCode').value.trim() || '9966';
   p.hourly = {
     basePrice: parseFloat(el('pHourlyBase').value) || 0,
     kmRate:    parseFloat(el('pHourlyKm').value)   || 0,
@@ -754,7 +758,9 @@ function saveInvPricing() {
     hrRate:    parseFloat(el('pAirportHr').value)   || 0,
   };
   p.outstation = {
-    kmRate: parseFloat(el('pOutstationKm').value) || 0,
+    dayRate:     parseFloat(el('pOutstationDay').value)     || 0,
+    minKmPerDay: parseFloat(el('pOutstationMinKm').value)   || 0,
+    extraKmRate: parseFloat(el('pOutstationExtraKm').value) || 0,
   };
   localStorage.setItem(INV_PRICING_KEY, JSON.stringify(p));
   const btn = document.querySelector('[onclick="saveInvPricing()"]');
@@ -844,8 +850,11 @@ function openInvForm(idx) {
   el('invExtraHr').value  = '';
 
   if (pkgKey === 'outstation') {
-    el('invOutPerKmRate').value = pkgData.kmRate || '';
-    el('invOutActualKm').value  = km             || '';
+    el('invOutDays').value        = 1;
+    el('invOutPerDayRate').value  = pkgData.dayRate     || '';
+    el('invOutMinKmPerDay').value = pkgData.minKmPerDay || '';
+    el('invOutActualKm').value    = km                  || '';
+    el('invOutExtraKmRate').value = pkgData.extraKmRate || '';
   } else {
     el('invPkgCost').value     = pkgData.basePrice || '';
     el('invExtraKmRate').value = pkgData.kmRate    || '';
@@ -882,7 +891,9 @@ function onInvPkgTypeChange() {
   el('invOutstationPkg').style.display = isOut ? 'block' : 'none';
 
   if (isOut) {
-    el('invOutPerKmRate').value = pkgData.kmRate    || '';
+    el('invOutPerDayRate').value  = pkgData.dayRate     || '';
+    el('invOutMinKmPerDay').value = pkgData.minKmPerDay || '';
+    el('invOutExtraKmRate').value = pkgData.extraKmRate || '';
   } else {
     el('invPkgCost').value     = pkgData.basePrice || '';
     el('invExtraKmRate').value = pkgData.kmRate    || '';
@@ -908,10 +919,61 @@ function updateInvTotal() {
   let outPerKmRate = 0, outActualKm = 0;
 
   if (isOut) {
-    outPerKmRate = +el('invOutPerKmRate').value || 0;
-    outActualKm  = +el('invOutActualKm').value  || 0;
-    pkgCost = outPerKmRate * outActualKm;
-    el('invOutTotalCost').value = Math.round(pkgCost);
+    const days       = +el('invOutDays').value        || 0;
+    const dayRate    = +el('invOutPerDayRate').value   || 0;
+    const minKmDay   = +el('invOutMinKmPerDay').value  || 0;
+    const actualKm   = +el('invOutActualKm').value     || 0;
+    const exKmRate   = +el('invOutExtraKmRate').value  || 0;
+    const baseCost   = days * dayRate;
+    const includedKm = days * minKmDay;
+    const extraKmOut = Math.max(0, actualKm - includedKm);
+    const extraKmOutCost = extraKmOut * exKmRate;
+    pkgCost = baseCost + extraKmOutCost;
+
+    el('invOutBaseCost').value   = Math.round(baseCost);
+    el('invOutIncludedKm').value = includedKm;
+    el('invOutExtraKm').value    = extraKmOut;
+    el('invOutExtraKmCost').value = Math.round(extraKmOutCost);
+
+    // store for summary rendering
+    outPerKmRate = dayRate; outActualKm = actualKm;
+    // reuse outPerKmRate/outActualKm vars for summary label below via closure
+    const _days = days, _dayRate = dayRate, _incKm = includedKm,
+          _actKm = actualKm, _exKm = extraKmOut, _exKmRate = exKmRate,
+          _baseCost = baseCost, _exKmCost = extraKmOutCost;
+
+    const parking     = +el('invParking').value     || 0;
+    const toll        = +el('invToll').value        || 0;
+    const stateTax    = +el('invStateTax').value    || 0;
+    const mcd         = +el('invMcd').value         || 0;
+    const misc        = +el('invMisc').value        || 0;
+    const driverAllow = +el('invDriverAllow').value || 0;
+    const discount    = +el('invDiscount').value    || 0;
+    const p2          = getInvPricing();
+    const cgstPct2    = p2.cgst ?? 2.5;
+    const sgstPct2    = p2.sgst ?? 2.5;
+    const net2   = pkgCost + parking + toll + stateTax + mcd + misc + driverAllow - discount;
+    const cgst2  = net2 * cgstPct2 / 100;
+    const sgst2  = net2 * sgstPct2 / 100;
+    const gross2 = net2 + cgst2 + sgst2;
+    const row2 = (label, val) =>
+      `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${label}</span><span>${fmtINR(val)}</span></div>`;
+    el('invSummary').innerHTML = `<div style="max-width:420px;margin-left:auto">
+      ${row2(`Outstation Base (${_days} day${_days>1?'s':''} × ₹${_dayRate}/day)`, _baseCost)}
+      ${_exKmCost ? row2(`Extra KM (${_exKm} km × ₹${_exKmRate}/km) <span style="font-size:11px;color:var(--text-muted)">incl. ${_incKm} km</span>`, _exKmCost) : ''}
+      ${parking     ? row2('Parking', parking) : ''}
+      ${toll        ? row2('Toll', toll) : ''}
+      ${stateTax    ? row2('State Tax', stateTax) : ''}
+      ${mcd         ? row2('Delhi MCD', mcd) : ''}
+      ${misc        ? row2('Miscellaneous', misc) : ''}
+      ${driverAllow ? row2('Driver Allowance', driverAllow) : ''}
+      ${discount    ? `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--error)"><span>Discount</span><span>− ${fmtINR(discount)}</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-weight:600"><span>Net Total</span><span>${fmtINR(net2)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-muted)"><span>CGST @ ${cgstPct2}%</span><span>${fmtINR(cgst2)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-muted)"><span>SGST @ ${sgstPct2}%</span><span>${fmtINR(sgst2)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;font-size:17px;font-weight:700"><span>Gross Total</span><span>${fmtINR(gross2)}</span></div>
+    </div>`;
+    return;
   } else {
     pkgCost     = +el('invPkgCost').value      || 0;
     extraKmRate = +el('invExtraKmRate').value  || 0;
@@ -941,12 +1003,9 @@ function updateInvTotal() {
     `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${label}</span><span>${fmtINR(val)}</span></div>`;
 
   el('invSummary').innerHTML = `<div style="max-width:420px;margin-left:auto">
-    ${isOut
-      ? row(`Outstation (${outActualKm} km × ₹${outPerKmRate}/km)`, pkgCost)
-      : row('Package Cost', pkgCost)
-    }
-    ${!isOut && extraKmCost ? row(`Extra KM (${extraKm} km × ₹${extraKmRate})`, extraKmCost) : ''}
-    ${!isOut && extraHrCost ? row(`Extra Hours (${extraHr} hr × ₹${extraHrRate})`, extraHrCost) : ''}
+    ${row('Package Cost', pkgCost)}
+    ${extraKmCost ? row(`Extra KM (${extraKm} km × ₹${extraKmRate})`, extraKmCost) : ''}
+    ${extraHrCost ? row(`Extra Hours (${extraHr} hr × ₹${extraHrRate})`, extraHrCost) : ''}
     ${parking     ? row('Parking', parking) : ''}
     ${toll        ? row('Toll', toll) : ''}
     ${stateTax    ? row('State Tax', stateTax) : ''}
@@ -975,14 +1034,27 @@ async function generateInvoice() {
 
   let pkgCost = 0, extraKmCost = 0, extraHrCost = 0;
   let extraKm = 0, extraKmRate = 0, extraHr = 0, extraHrRate = 0;
-  let outPerKmRate = 0, outActualKm = 0;
+  let outDays = 0, outDayRate = 0, outIncludedKm = 0, outActualKm = 0,
+      outExtraKm = 0, outExtraKmRate = 0, outBaseCost = 0, outExtraKmCost = 0;
 
   if (isOut) {
-    outPerKmRate = +el('invOutPerKmRate').value || 0;
-    outActualKm  = +el('invOutActualKm').value  || 0;
-    pkgCost = outPerKmRate * outActualKm;
-    if (outPerKmRate <= 0) {
-      el('invErrMsg').textContent = '❌ Per KM Rate is required and must be greater than ₹0.';
+    const days      = +el('invOutDays').value        || 0;
+    const dayRate   = +el('invOutPerDayRate').value   || 0;
+    const minKmDay  = +el('invOutMinKmPerDay').value  || 0;
+    const actualKm  = +el('invOutActualKm').value     || 0;
+    const exKmRate  = +el('invOutExtraKmRate').value  || 0;
+    outDays = days; outDayRate = dayRate; outActualKm = actualKm; outExtraKmRate = exKmRate;
+    outBaseCost   = days * dayRate;
+    outIncludedKm = days * minKmDay;
+    outExtraKm    = Math.max(0, actualKm - outIncludedKm);
+    outExtraKmCost = outExtraKm * exKmRate;
+    pkgCost = outBaseCost + outExtraKmCost;
+    if (dayRate <= 0) {
+      el('invErrMsg').textContent = '❌ Per Day Rate is required and must be greater than ₹0.';
+      el('invErrMsg').style.display = 'block'; return;
+    }
+    if (days <= 0) {
+      el('invErrMsg').textContent = '❌ Number of Days is required.';
       el('invErrMsg').style.display = 'block'; return;
     }
   } else {
@@ -1015,6 +1087,7 @@ async function generateInvoice() {
   const cgst        = net * cgstPct / 100;
   const sgst        = net * sgstPct / 100;
   const gross       = net + cgst + sgst;
+  const hsnCode     = p.hsnCode || '9966';
   const inr         = n => '₹' + Math.round(n).toLocaleString('en-IN');
   const today       = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
   const km          = (parseFloat(d['End Km']) || 0) - (parseFloat(d['Start Km']) || 0);
@@ -1112,9 +1185,10 @@ async function generateInvoice() {
     <thead><tr><th>Description</th><th>Amount</th></tr></thead>
     <tbody>
       ${isOut
-        ? trow(`Outstation &nbsp;<span style="font-size:11px;color:#9ca3af">(${outActualKm} km × ₹${outPerKmRate}/km)</span>`, pkgCost)
+        ? trow(`Outstation Base &nbsp;<span style="font-size:11px;color:#9ca3af">(${outDays} day${outDays>1?'s':''} × ₹${outDayRate}/day · ${outIncludedKm} km incl.)</span>`, outBaseCost)
         : trow('Package Cost', pkgCost)
       }
+      ${isOut && outExtraKmCost ? trow(`Additional KM &nbsp;<span style="font-size:11px;color:#9ca3af">(${outExtraKm} km × ₹${outExtraKmRate}/km)</span>`, outExtraKmCost) : ''}
       ${!isOut && extraKmCost ? trow(`Additional KM &nbsp;<span style="font-size:11px;color:#9ca3af">(${extraKm} km × ₹${extraKmRate}/km)</span>`, extraKmCost) : ''}
       ${!isOut && extraHrCost ? trow(`Additional Hours &nbsp;<span style="font-size:11px;color:#9ca3af">(${extraHr} hr × ₹${extraHrRate}/hr)</span>`, extraHrCost) : ''}
       ${parking   ? trow('Parking', parking) : ''}
@@ -1124,7 +1198,7 @@ async function generateInvoice() {
       ${misc      ? trow('Miscellaneous', misc) : ''}
       ${driverAllow ? trow('Driver Allowance', driverAllow) : ''}
       ${discount  ? `<tr class="deduct"><td>Discount</td><td style="text-align:right;font-weight:500">− ${inr(discount)}</td></tr>` : ''}
-      <tr class="net-row"><td>Net Total</td><td style="text-align:right">${inr(net)}</td></tr>
+      <tr class="net-row"><td>Net Total &nbsp;<span style="font-size:10px;font-weight:400;color:#9ca3af">HSN ${hsnCode}</span></td><td style="text-align:right">${inr(net)}</td></tr>
       <tr class="gst-row"><td>CGST @ ${cgstPct}%</td><td style="text-align:right">${inr(cgst)}</td></tr>
       <tr class="gst-row"><td>SGST @ ${sgstPct}%</td><td style="text-align:right">${inr(sgst)}</td></tr>
       <tr class="gross-row"><td>GROSS TOTAL</td><td style="text-align:right">${inr(gross)}</td></tr>

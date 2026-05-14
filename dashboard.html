@@ -401,14 +401,21 @@
             <span><span class="section-icon">💲</span> Package Pricing</span>
             <button class="btn btn-primary" style="padding:5px 14px;font-size:13px" onclick="saveInvPricing()">Save Pricing</button>
           </div>
-          <div class="grid grid-2" style="margin-bottom:20px;max-width:400px">
-            <div class="field">
-              <label>CGST (%)</label>
-              <input type="number" id="invCgstPct" min="0" max="50" step="0.5" placeholder="2.5">
-            </div>
-            <div class="field">
-              <label>SGST (%)</label>
-              <input type="number" id="invSgstPct" min="0" max="50" step="0.5" placeholder="2.5">
+          <div style="margin-bottom:20px">
+            <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:12px">Goods and Services Tax (GST)</div>
+            <div class="grid grid-3" style="max-width:600px">
+              <div class="field">
+                <label>CGST (%)</label>
+                <input type="number" id="invCgstPct" min="0" max="50" step="0.5" placeholder="2.5">
+              </div>
+              <div class="field">
+                <label>SGST (%)</label>
+                <input type="number" id="invSgstPct" min="0" max="50" step="0.5" placeholder="2.5">
+              </div>
+              <div class="field">
+                <label>HSN Code</label>
+                <input type="text" id="invHsnCode" placeholder="9966">
+              </div>
             </div>
           </div>
 
@@ -452,10 +459,18 @@
             <!-- Outstation -->
             <div style="border:1px solid var(--border);border-radius:10px;padding:16px">
               <div style="font-weight:700;font-size:14px;margin-bottom:2px">🛣️ Outstation</div>
-              <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Charged per km driven</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Per day · min km included · extra km charged</div>
               <div class="field">
-                <label>Per KM Rate (₹/km)</label>
-                <input type="number" id="pOutstationKm" min="0" placeholder="0">
+                <label>Per Day Rate (₹/day)</label>
+                <input type="number" id="pOutstationDay" min="0" placeholder="0">
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label>Min KM per Day</label>
+                <input type="number" id="pOutstationMinKm" min="0" placeholder="250">
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label>Extra KM Rate (₹/km)</label>
+                <input type="number" id="pOutstationExtraKm" min="0" placeholder="0">
               </div>
             </div>
           </div>
@@ -616,20 +631,44 @@
               </div>
             </div>
 
-            <!-- Outstation: per-km calculation -->
+            <!-- Outstation: per-day with min km -->
             <div id="invOutstationPkg" style="display:none">
               <div class="grid grid-3">
                 <div class="field">
-                  <label>Per KM Rate (₹/km) <span class="req">*</span></label>
-                  <input type="number" id="invOutPerKmRate" placeholder="Required" min="0" oninput="updateInvTotal()">
+                  <label>Number of Days <span class="req">*</span></label>
+                  <input type="number" id="invOutDays" placeholder="1" min="1" step="1" oninput="updateInvTotal()">
                 </div>
                 <div class="field">
-                  <label>Total KM Driven</label>
+                  <label>Per Day Rate (₹/day) <span class="req">*</span></label>
+                  <input type="number" id="invOutPerDayRate" placeholder="Required" min="0" oninput="updateInvTotal()">
+                </div>
+                <div class="field">
+                  <label>Base Cost (₹)</label>
+                  <input type="number" id="invOutBaseCost" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)">
+                </div>
+                <div class="field">
+                  <label>Min KM per Day</label>
+                  <input type="number" id="invOutMinKmPerDay" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)">
+                </div>
+                <div class="field">
+                  <label>Total Included KM</label>
+                  <input type="number" id="invOutIncludedKm" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)">
+                </div>
+                <div class="field">
+                  <label>Actual KM Driven</label>
                   <input type="number" id="invOutActualKm" placeholder="0" min="0" oninput="updateInvTotal()">
                 </div>
                 <div class="field">
-                  <label>Outstation Cost (₹)</label>
-                  <input type="number" id="invOutTotalCost" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)">
+                  <label>Extra KM</label>
+                  <input type="number" id="invOutExtraKm" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)">
+                </div>
+                <div class="field">
+                  <label>Extra KM Rate (₹/km)</label>
+                  <input type="number" id="invOutExtraKmRate" placeholder="0" min="0" oninput="updateInvTotal()">
+                </div>
+                <div class="field">
+                  <label>Extra KM Cost (₹)</label>
+                  <input type="number" id="invOutExtraKmCost" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)">
                 </div>
               </div>
             </div>
