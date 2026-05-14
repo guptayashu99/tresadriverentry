@@ -247,7 +247,7 @@ function renderAnomalyPanel(flagged) {
     counts.late    && `⏰ ${counts.late} late submission${counts.late > 1 ? 's' : ''}`,
     counts.km_gap  && `📉 ${counts.km_gap} km gap${counts.km_gap > 1 ? 's' : ''}`,
     counts.high_ot && `⚡ ${counts.high_ot} high OT`,
-    counts.no_att  && `📍 ${counts.no_att} missing check-in (Beta)`
+    counts.no_att  && `📍 ${counts.no_att} missing check-in`
   ].filter(Boolean).join(' · ');
 
   panel.style.display = 'block';

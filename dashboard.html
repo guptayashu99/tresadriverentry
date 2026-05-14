@@ -38,9 +38,10 @@
         <img src="Branding/Tresa Fleet Logo cropped.png" alt="Tresa Fleet Management" class="brand-logo">
       </a>
       <nav class="nav">
-        <a href="index.html"     class="nav-link">Entry Form</a>
-        <a href="my-duties.html" class="nav-link">My Duties</a>
-        <a href="dashboard.html" class="nav-link active">Dashboard</a>
+        <a href="attendance.html" class="nav-link">Attendance</a>
+        <a href="index.html"      class="nav-link">Duty Entry</a>
+        <a href="my-duties.html"  class="nav-link">My Duties</a>
+        <a href="dashboard.html"  class="nav-link active">Owner Dashboard</a>
       </nav>
     </div>
   </header>
@@ -120,7 +121,7 @@
         <button class="tab active" data-tab="tabOverview"    onclick="switchTab('tabOverview')">Overview</button>
         <button class="tab"        data-tab="tabSalary"      onclick="switchTab('tabSalary')">Salary Report</button>
         <button class="tab"        data-tab="tabVendor"      onclick="switchTab('tabVendor')">Vendor Report</button>
-        <button class="tab"        data-tab="tabAttendance"  onclick="switchTab('tabAttendance')">Attendance <span style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:10px;vertical-align:middle;font-weight:600">Beta</span></button>
+        <button class="tab"        data-tab="tabAttendance"  onclick="switchTab('tabAttendance')">Attendance</button>
       </div>
 
       <!-- ── Tab: Overview ─────────────────────────────────────── -->
@@ -365,15 +366,11 @@
         </div>
       </div>
 
-      <!-- ── Tab: Attendance (Beta) ────────────────────────────── -->
+      <!-- ── Tab: Attendance ──────────────────────────────────── -->
       <div class="tab-panel" id="tabAttendance">
         <div class="card">
           <div class="section-title">
             <span class="section-icon">📍</span> Attendance Log
-            <span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-weight:600;margin-left:8px">Beta</span>
-          </div>
-          <div style="font-size:13px;color:var(--text-muted);background:var(--warning-light);padding:10px 14px;border-radius:var(--r);margin-bottom:14px">
-            Attendance is in beta. Check-ins are only recorded when drivers use the attendance page at the garage.
           </div>
           <div class="table-scroll">
             <table>
