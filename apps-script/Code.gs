@@ -17,12 +17,11 @@ const OWNER_EMAIL           = 'guptayashu99@gmail.com';
 // Column headers – order must match appendRow() below
 const HEADERS = [
   'Timestamp', 'Driver Name', 'Vehicle Number', 'Duty Date',
-  'Vendor', 'Vendor Duty Number', 'Duty Type',
+  'Vendor', 'Vendor Duty Number', 'Manual Slip', 'Manual Slip No.', 'Duty Type',
   'Start Km', 'Start Date', 'Start Time', 'End Km', 'End Date', 'End Time',
   'Total Km', 'Duration (mins)',
   'Parking', 'MCD', 'Toll', 'State Tax', 'Miscellaneous', 'Total Expenses',
-  'Filled Fuel', 'Fuel Amount', 'Fuel Litres', 'Fuel Odometer Reading',
-  'Manual Slip', 'Manual Slip No.'
+  'Filled Fuel', 'Fuel Amount', 'Fuel Litres', 'Fuel Odometer Reading'
 ];
 
 const ATTENDANCE_HEADERS = [
@@ -69,6 +68,8 @@ function doPostDuty_(data) {
     data.dutyDate         || '',
     data.vendor           || '',
     data.vendorDutyNumber || '',
+    data.manualSlip ? 'Yes' : 'No',
+    data.manualSlip ? (data.manualSlipNo || '') : '',
     data.dutyType         || '',
     parseFloat(data.startKm) || 0,
     startDate,
@@ -87,9 +88,7 @@ function doPostDuty_(data) {
     data.filledFuel ? 'Yes' : 'No',
     data.filledFuel ? (parseFloat(data.fuelAmount)   || 0) : '',
     data.filledFuel ? (parseFloat(data.fuelLitres)   || 0) : '',
-    data.filledFuel ? (parseFloat(data.fuelOdometer) || '') : '',
-    data.manualSlip ? 'Yes' : 'No',
-    data.manualSlip ? (data.manualSlipNo || '') : ''
+    data.filledFuel ? (parseFloat(data.fuelOdometer) || '') : ''
   ]);
 
   // Email notification to owner
