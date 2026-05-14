@@ -401,7 +401,7 @@
             <span><span class="section-icon">💲</span> Package Pricing</span>
             <button class="btn btn-primary" style="padding:5px 14px;font-size:13px" onclick="saveInvPricing()">Save Pricing</button>
           </div>
-          <div class="grid grid-2" style="margin-bottom:16px;max-width:400px">
+          <div class="grid grid-2" style="margin-bottom:20px;max-width:400px">
             <div class="field">
               <label>CGST (%)</label>
               <input type="number" id="invCgstPct" min="0" max="50" step="0.5" placeholder="2.5">
@@ -411,19 +411,53 @@
               <input type="number" id="invSgstPct" min="0" max="50" step="0.5" placeholder="2.5">
             </div>
           </div>
-          <div class="table-scroll">
-            <table id="invPricingTable">
-              <thead>
-                <tr>
-                  <th>Package</th>
-                  <th>Description</th>
-                  <th>Base Price (₹)</th>
-                  <th>Extra KM Rate (₹/km)</th>
-                  <th>Extra Hour Rate (₹/hr)</th>
-                </tr>
-              </thead>
-              <tbody id="invPricingBody"></tbody>
-            </table>
+
+          <div class="grid grid-3">
+            <!-- Hourly Rental -->
+            <div style="border:1px solid var(--border);border-radius:10px;padding:16px">
+              <div style="font-weight:700;font-size:14px;margin-bottom:2px">🕐 8 Hrs / 80 Kms</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Hourly Rental — fixed package cost</div>
+              <div class="field">
+                <label>Package Price (₹)</label>
+                <input type="number" id="pHourlyBase" min="0" placeholder="0">
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label>Extra KM Rate (₹/km)</label>
+                <input type="number" id="pHourlyKm" min="0" placeholder="0">
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label>Extra Hour Rate (₹/hr)</label>
+                <input type="number" id="pHourlyHr" min="0" placeholder="0">
+              </div>
+            </div>
+
+            <!-- Airport Transfer -->
+            <div style="border:1px solid var(--border);border-radius:10px;padding:16px">
+              <div style="font-weight:700;font-size:14px;margin-bottom:2px">✈️ Airport Transfer</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Fixed package cost for the transfer</div>
+              <div class="field">
+                <label>Package Price (₹)</label>
+                <input type="number" id="pAirportBase" min="0" placeholder="0">
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label>Extra KM Rate (₹/km)</label>
+                <input type="number" id="pAirportKm" min="0" placeholder="0">
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label>Extra Hour Rate (₹/hr)</label>
+                <input type="number" id="pAirportHr" min="0" placeholder="0">
+              </div>
+            </div>
+
+            <!-- Outstation -->
+            <div style="border:1px solid var(--border);border-radius:10px;padding:16px">
+              <div style="font-weight:700;font-size:14px;margin-bottom:2px">🛣️ Outstation</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Charged per km driven</div>
+              <div class="field">
+                <label>Per KM Rate (₹/km)</label>
+                <input type="number" id="pOutstationKm" min="0" placeholder="0">
+              </div>
+            </div>
           </div>
         </div>
 
@@ -531,50 +565,72 @@
           <!-- Package Details -->
           <div class="card" style="margin-bottom:16px">
             <div class="section-title"><span class="section-icon">📦</span> Package Details</div>
-            <div class="grid">
+            <div class="grid" style="margin-bottom:14px">
               <div class="field">
                 <label>Package Type</label>
                 <select id="invPkgType" onchange="onInvPkgTypeChange()">
-                  <option>Day Use</option>
-                  <option>Airport Transfer</option>
-                  <option>Outstation One-Way</option>
-                  <option>Outstation Round-Trip</option>
-                  <option>Other</option>
+                  <option value="hourly">8 Hrs / 80 Kms (Hourly Rental)</option>
+                  <option value="airport">Airport Transfer</option>
+                  <option value="outstation">Outstation</option>
                 </select>
               </div>
               <div class="field">
                 <label>Package Description</label>
-                <input type="text" id="invPkgDesc" placeholder="e.g. 8 hours 80 kms">
-              </div>
-              <div class="field">
-                <label>Package Cost (₹) <span class="req">*</span></label>
-                <input type="number" id="invPkgCost" placeholder="Required" min="0" oninput="updateInvTotal()">
+                <input type="text" id="invPkgDesc" placeholder="e.g. 8 hours 80 kms, pickup at 06:00">
               </div>
             </div>
-            <div class="grid grid-3" style="margin-top:14px">
-              <div class="field">
-                <label>Extra KM Rate (₹/km)</label>
-                <input type="number" id="invExtraKmRate" placeholder="0" min="0" oninput="updateInvTotal()">
+
+            <!-- Fixed-price packages: Hourly Rental & Airport Transfer -->
+            <div id="invFixedPkg">
+              <div class="grid" style="margin-bottom:14px">
+                <div class="field">
+                  <label>Package Cost (₹) <span class="req">*</span></label>
+                  <input type="number" id="invPkgCost" placeholder="Required" min="0" oninput="updateInvTotal()">
+                </div>
               </div>
-              <div class="field">
-                <label>Extra KMs Used</label>
-                <input type="number" id="invExtraKm" placeholder="0" min="0" oninput="updateInvTotal()">
+              <div class="grid grid-3">
+                <div class="field">
+                  <label>Extra KM Rate (₹/km)</label>
+                  <input type="number" id="invExtraKmRate" placeholder="0" min="0" oninput="updateInvTotal()">
+                </div>
+                <div class="field">
+                  <label>Extra KMs Used</label>
+                  <input type="number" id="invExtraKm" placeholder="0" min="0" oninput="updateInvTotal()">
+                </div>
+                <div class="field">
+                  <label>Extra KM Cost (₹)</label>
+                  <input type="number" id="invExtraKmCost" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)">
+                </div>
+                <div class="field">
+                  <label>Extra Hour Rate (₹/hr)</label>
+                  <input type="number" id="invExtraHrRate" placeholder="0" min="0" oninput="updateInvTotal()">
+                </div>
+                <div class="field">
+                  <label>Extra Hours Used</label>
+                  <input type="number" id="invExtraHr" placeholder="0" min="0" step="0.5" oninput="updateInvTotal()">
+                </div>
+                <div class="field">
+                  <label>Extra Hour Cost (₹)</label>
+                  <input type="number" id="invExtraHrCost" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)">
+                </div>
               </div>
-              <div class="field">
-                <label>Extra KM Cost (₹)</label>
-                <input type="number" id="invExtraKmCost" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)">
-              </div>
-              <div class="field">
-                <label>Extra Hour Rate (₹/hr)</label>
-                <input type="number" id="invExtraHrRate" placeholder="0" min="0" oninput="updateInvTotal()">
-              </div>
-              <div class="field">
-                <label>Extra Hours Used</label>
-                <input type="number" id="invExtraHr" placeholder="0" min="0" step="0.5" oninput="updateInvTotal()">
-              </div>
-              <div class="field">
-                <label>Extra Hour Cost (₹)</label>
-                <input type="number" id="invExtraHrCost" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)">
+            </div>
+
+            <!-- Outstation: per-km calculation -->
+            <div id="invOutstationPkg" style="display:none">
+              <div class="grid grid-3">
+                <div class="field">
+                  <label>Per KM Rate (₹/km) <span class="req">*</span></label>
+                  <input type="number" id="invOutPerKmRate" placeholder="Required" min="0" oninput="updateInvTotal()">
+                </div>
+                <div class="field">
+                  <label>Total KM Driven</label>
+                  <input type="number" id="invOutActualKm" placeholder="0" min="0" oninput="updateInvTotal()">
+                </div>
+                <div class="field">
+                  <label>Outstation Cost (₹)</label>
+                  <input type="number" id="invOutTotalCost" readonly tabindex="-1" style="background:var(--bg);color:var(--text-muted)">
+                </div>
               </div>
             </div>
           </div>

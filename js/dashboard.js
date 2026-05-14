@@ -703,11 +703,9 @@ function refreshData() { loadData(); }
 const INV_PRICING_KEY = 'invPricing';
 
 const INV_PACKAGES = [
-  { key: 'dayuse',      label: 'Day Use',              desc: '8 hours / 80 kms' },
-  { key: 'airport',     label: 'Airport Transfer',      desc: '' },
-  { key: 'outstationOW',label: 'Outstation One-Way',    desc: '' },
-  { key: 'outstationRT',label: 'Outstation Round-Trip', desc: '' },
-  { key: 'other',       label: 'Other',                 desc: '' },
+  { key: 'hourly',     label: '8 Hrs / 80 Kms', subLabel: 'Hourly Rental',  hasFixed: true  },
+  { key: 'airport',    label: 'Airport Transfer', subLabel: 'Fixed package',  hasFixed: true  },
+  { key: 'outstation', label: 'Outstation',        subLabel: 'Per KM rate',    hasFixed: false },
 ];
 
 function getInvPricing() {
@@ -718,14 +716,17 @@ function renderInvPricing() {
   const p = getInvPricing();
   el('invCgstPct').value = p.cgst ?? 2.5;
   el('invSgstPct').value = p.sgst ?? 2.5;
-  el('invPricingBody').innerHTML = INV_PACKAGES.map(pkg => `
-    <tr>
-      <td style="font-weight:600">${pkg.label}</td>
-      <td><input type="text"   style="width:100%;font-size:13px;padding:5px 8px" data-pkg="${pkg.key}" data-field="desc"      value="${(p[pkg.key] && p[pkg.key].desc)      ?? pkg.desc}" placeholder="e.g. 8h 80km"></td>
-      <td><input type="number" style="width:100%;font-size:13px;padding:5px 8px" data-pkg="${pkg.key}" data-field="basePrice" value="${(p[pkg.key] && p[pkg.key].basePrice) ?? ''}"       placeholder="0" min="0"></td>
-      <td><input type="number" style="width:100%;font-size:13px;padding:5px 8px" data-pkg="${pkg.key}" data-field="kmRate"    value="${(p[pkg.key] && p[pkg.key].kmRate)    ?? ''}"       placeholder="0" min="0"></td>
-      <td><input type="number" style="width:100%;font-size:13px;padding:5px 8px" data-pkg="${pkg.key}" data-field="hrRate"    value="${(p[pkg.key] && p[pkg.key].hrRate)    ?? ''}"       placeholder="0" min="0"></td>
-    </tr>`).join('');
+
+  const h = p.hourly     || {};
+  const a = p.airport    || {};
+  const o = p.outstation || {};
+  el('pHourlyBase').value    = h.basePrice ?? '';
+  el('pHourlyKm').value      = h.kmRate    ?? '';
+  el('pHourlyHr').value      = h.hrRate    ?? '';
+  el('pAirportBase').value   = a.basePrice ?? '';
+  el('pAirportKm').value     = a.kmRate    ?? '';
+  el('pAirportHr').value     = a.hrRate    ?? '';
+  el('pOutstationKm').value  = o.kmRate    ?? '';
 
   // Populate driver filter once
   const sel = el('invDriverFilter');
@@ -742,11 +743,19 @@ function saveInvPricing() {
   const p = getInvPricing();
   p.cgst = parseFloat(el('invCgstPct').value) || 0;
   p.sgst = parseFloat(el('invSgstPct').value) || 0;
-  document.querySelectorAll('#invPricingBody input').forEach(inp => {
-    const pkg = inp.dataset.pkg, field = inp.dataset.field;
-    if (!p[pkg]) p[pkg] = {};
-    p[pkg][field] = field === 'desc' ? inp.value : (parseFloat(inp.value) || 0);
-  });
+  p.hourly = {
+    basePrice: parseFloat(el('pHourlyBase').value) || 0,
+    kmRate:    parseFloat(el('pHourlyKm').value)   || 0,
+    hrRate:    parseFloat(el('pHourlyHr').value)   || 0,
+  };
+  p.airport = {
+    basePrice: parseFloat(el('pAirportBase').value) || 0,
+    kmRate:    parseFloat(el('pAirportKm').value)   || 0,
+    hrRate:    parseFloat(el('pAirportHr').value)   || 0,
+  };
+  p.outstation = {
+    kmRate: parseFloat(el('pOutstationKm').value) || 0,
+  };
   localStorage.setItem(INV_PRICING_KEY, JSON.stringify(p));
   const btn = document.querySelector('[onclick="saveInvPricing()"]');
   btn.textContent = '✓ Saved'; setTimeout(() => btn.textContent = 'Save Pricing', 1500);
@@ -793,13 +802,11 @@ function renderInvoicingDuties() {
 
 // ── Invoice form ─────────────────────────────────────────────────────
 
-const PKG_KEY_MAP = {
-  'Day Use': 'dayuse', 'Airport Transfer': 'airport',
-  'Outstation One-Way': 'outstationOW', 'Outstation Round-Trip': 'outstationRT', 'Other': 'other'
-};
 const DUTY_TYPE_TO_PKG = {
-  'Day Use': 'Day Use', 'Airport Transfer': 'Airport Transfer',
-  'Outstation': 'Outstation One-Way', 'Outstation Round-Trip': 'Outstation Round-Trip'
+  'Day Use':               'hourly',
+  'Airport Transfer':      'airport',
+  'Outstation':            'outstation',
+  'Outstation Round-Trip': 'outstation',
 };
 
 function openInvForm(idx) {
@@ -828,18 +835,22 @@ function openInvForm(idx) {
     `<span><strong>Duration:</strong> ${d['Duration (mins)'] ? fmtDuration2(+d['Duration (mins)']) : '—'}</span>`,
   ].join('');
 
-  // Package type from duty type
-  const pkgLabel = DUTY_TYPE_TO_PKG[d['Duty Type']] || 'Day Use';
-  el('invPkgType').value = pkgLabel;
-  const pkgKey = PKG_KEY_MAP[pkgLabel];
+  // Map duty type to package key and pre-fill pricing
+  const pkgKey  = DUTY_TYPE_TO_PKG[d['Duty Type']] || 'hourly';
   const pkgData = p[pkgKey] || {};
+  el('invPkgType').value  = pkgKey;
+  el('invPkgDesc').value  = '';
+  el('invExtraKm').value  = '';
+  el('invExtraHr').value  = '';
 
-  el('invPkgDesc').value      = pkgData.desc     || '';
-  el('invPkgCost').value      = pkgData.basePrice || '';
-  el('invExtraKmRate').value  = pkgData.kmRate    || '';
-  el('invExtraHrRate').value  = pkgData.hrRate    || '';
-  el('invExtraKm').value      = '';
-  el('invExtraHr').value      = '';
+  if (pkgKey === 'outstation') {
+    el('invOutPerKmRate').value = pkgData.kmRate || '';
+    el('invOutActualKm').value  = km             || '';
+  } else {
+    el('invPkgCost').value     = pkgData.basePrice || '';
+    el('invExtraKmRate').value = pkgData.kmRate    || '';
+    el('invExtraHrRate').value = pkgData.hrRate    || '';
+  }
 
   // Pre-fill expenses from duty
   el('invParking').value      = parseFloat(d['Parking'])        || 0;
@@ -858,17 +869,25 @@ function openInvForm(idx) {
   el('invBillingAddr').value  = '';
   el('invErrMsg').style.display = 'none';
 
-  updateInvTotal();
+  onInvPkgTypeChange();
 }
 
 function onInvPkgTypeChange() {
-  const p = getInvPricing();
-  const pkgKey = PKG_KEY_MAP[el('invPkgType').value];
+  const pkgKey  = el('invPkgType').value;
+  const isOut   = pkgKey === 'outstation';
+  const p       = getInvPricing();
   const pkgData = p[pkgKey] || {};
-  el('invPkgDesc').value     = pkgData.desc     || '';
-  el('invPkgCost').value     = pkgData.basePrice || '';
-  el('invExtraKmRate').value = pkgData.kmRate    || '';
-  el('invExtraHrRate').value = pkgData.hrRate    || '';
+
+  el('invFixedPkg').style.display      = isOut ? 'none'  : 'block';
+  el('invOutstationPkg').style.display = isOut ? 'block' : 'none';
+
+  if (isOut) {
+    el('invOutPerKmRate').value = pkgData.kmRate    || '';
+  } else {
+    el('invPkgCost').value     = pkgData.basePrice || '';
+    el('invExtraKmRate').value = pkgData.kmRate    || '';
+    el('invExtraHrRate').value = pkgData.hrRate    || '';
+  }
   updateInvTotal();
 }
 
@@ -878,39 +897,56 @@ function closeInvForm() {
 }
 
 function updateInvTotal() {
-  const pkgCost     = +el('invPkgCost').value      || 0;
-  const extraKmRate = +el('invExtraKmRate').value   || 0;
-  const extraKm     = +el('invExtraKm').value       || 0;
-  const extraHrRate = +el('invExtraHrRate').value   || 0;
-  const extraHr     = +el('invExtraHr').value       || 0;
-  const parking     = +el('invParking').value       || 0;
-  const toll        = +el('invToll').value          || 0;
-  const stateTax    = +el('invStateTax').value      || 0;
-  const mcd         = +el('invMcd').value           || 0;
-  const misc        = +el('invMisc').value          || 0;
-  const driverAllow = +el('invDriverAllow').value   || 0;
-  const discount    = +el('invDiscount').value      || 0;
-  const p           = getInvPricing();
-  const cgstPct     = p.cgst ?? 2.5;
-  const sgstPct     = p.sgst ?? 2.5;
+  const pkgKey  = el('invPkgType').value;
+  const isOut   = pkgKey === 'outstation';
+  const p       = getInvPricing();
+  const cgstPct = p.cgst ?? 2.5;
+  const sgstPct = p.sgst ?? 2.5;
 
-  const extraKmCost = extraKmRate * extraKm;
-  const extraHrCost = extraHrRate * extraHr;
-  el('invExtraKmCost').value = Math.round(extraKmCost);
-  el('invExtraHrCost').value = Math.round(extraHrCost);
+  let pkgCost = 0, extraKmCost = 0, extraHrCost = 0;
+  let extraKm = 0, extraKmRate = 0, extraHr = 0, extraHrRate = 0;
+  let outPerKmRate = 0, outActualKm = 0;
+
+  if (isOut) {
+    outPerKmRate = +el('invOutPerKmRate').value || 0;
+    outActualKm  = +el('invOutActualKm').value  || 0;
+    pkgCost = outPerKmRate * outActualKm;
+    el('invOutTotalCost').value = Math.round(pkgCost);
+  } else {
+    pkgCost     = +el('invPkgCost').value      || 0;
+    extraKmRate = +el('invExtraKmRate').value  || 0;
+    extraKm     = +el('invExtraKm').value      || 0;
+    extraHrRate = +el('invExtraHrRate').value  || 0;
+    extraHr     = +el('invExtraHr').value      || 0;
+    extraKmCost = extraKmRate * extraKm;
+    extraHrCost = extraHrRate * extraHr;
+    el('invExtraKmCost').value = Math.round(extraKmCost);
+    el('invExtraHrCost').value = Math.round(extraHrCost);
+  }
+
+  const parking     = +el('invParking').value     || 0;
+  const toll        = +el('invToll').value        || 0;
+  const stateTax    = +el('invStateTax').value    || 0;
+  const mcd         = +el('invMcd').value         || 0;
+  const misc        = +el('invMisc').value        || 0;
+  const driverAllow = +el('invDriverAllow').value || 0;
+  const discount    = +el('invDiscount').value    || 0;
 
   const net   = pkgCost + extraKmCost + extraHrCost + parking + toll + stateTax + mcd + misc + driverAllow - discount;
   const cgst  = net * cgstPct / 100;
   const sgst  = net * sgstPct / 100;
   const gross = net + cgst + sgst;
 
-  const row = (label, val, cls = '') =>
-    `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px${cls}"><span>${label}</span><span>${fmtINR(val)}</span></div>`;
+  const row = (label, val) =>
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${label}</span><span>${fmtINR(val)}</span></div>`;
 
   el('invSummary').innerHTML = `<div style="max-width:420px;margin-left:auto">
-    ${row('Package Cost', pkgCost)}
-    ${extraKmCost ? row(`Extra KM (${extraKm} km × ₹${extraKmRate})`, extraKmCost) : ''}
-    ${extraHrCost ? row(`Extra Hours (${extraHr} hr × ₹${extraHrRate})`, extraHrCost) : ''}
+    ${isOut
+      ? row(`Outstation (${outActualKm} km × ₹${outPerKmRate}/km)`, pkgCost)
+      : row('Package Cost', pkgCost)
+    }
+    ${!isOut && extraKmCost ? row(`Extra KM (${extraKm} km × ₹${extraKmRate})`, extraKmCost) : ''}
+    ${!isOut && extraHrCost ? row(`Extra Hours (${extraHr} hr × ₹${extraHrRate})`, extraHrCost) : ''}
     ${parking     ? row('Parking', parking) : ''}
     ${toll        ? row('Toll', toll) : ''}
     ${stateTax    ? row('State Tax', stateTax) : ''}
@@ -929,35 +965,52 @@ function updateInvTotal() {
 
 async function generateInvoice() {
   const custName = el('invCustName').value.trim();
-  const pkgCost  = +el('invPkgCost').value || 0;
+  const pkgKey   = el('invPkgType').value;
+  const isOut    = pkgKey === 'outstation';
 
   if (!custName) {
     el('invErrMsg').textContent = '❌ Customer name is required.';
     el('invErrMsg').style.display = 'block'; return;
   }
-  if (pkgCost <= 0) {
-    el('invErrMsg').textContent = '❌ Package Cost is required and must be greater than ₹0.';
-    el('invErrMsg').style.display = 'block'; return;
+
+  let pkgCost = 0, extraKmCost = 0, extraHrCost = 0;
+  let extraKm = 0, extraKmRate = 0, extraHr = 0, extraHrRate = 0;
+  let outPerKmRate = 0, outActualKm = 0;
+
+  if (isOut) {
+    outPerKmRate = +el('invOutPerKmRate').value || 0;
+    outActualKm  = +el('invOutActualKm').value  || 0;
+    pkgCost = outPerKmRate * outActualKm;
+    if (outPerKmRate <= 0) {
+      el('invErrMsg').textContent = '❌ Per KM Rate is required and must be greater than ₹0.';
+      el('invErrMsg').style.display = 'block'; return;
+    }
+  } else {
+    pkgCost     = +el('invPkgCost').value     || 0;
+    extraKmRate = +el('invExtraKmRate').value || 0;
+    extraKm     = +el('invExtraKm').value     || 0;
+    extraHrRate = +el('invExtraHrRate').value || 0;
+    extraHr     = +el('invExtraHr').value     || 0;
+    extraKmCost = extraKmRate * extraKm;
+    extraHrCost = extraHrRate * extraHr;
+    if (pkgCost <= 0) {
+      el('invErrMsg').textContent = '❌ Package Cost is required and must be greater than ₹0.';
+      el('invErrMsg').style.display = 'block'; return;
+    }
   }
   el('invErrMsg').style.display = 'none';
 
-  const d           = currentInvDuty || {};
-  const p           = getInvPricing();
-  const cgstPct     = p.cgst ?? 2.5;
-  const sgstPct     = p.sgst ?? 2.5;
-  const extraKmRate = +el('invExtraKmRate').value || 0;
-  const extraKm     = +el('invExtraKm').value     || 0;
-  const extraHrRate = +el('invExtraHrRate').value  || 0;
-  const extraHr     = +el('invExtraHr').value      || 0;
-  const parking     = +el('invParking').value      || 0;
-  const toll        = +el('invToll').value         || 0;
-  const stateTax    = +el('invStateTax').value     || 0;
-  const mcd         = +el('invMcd').value          || 0;
-  const misc        = +el('invMisc').value         || 0;
-  const driverAllow = +el('invDriverAllow').value  || 0;
-  const discount    = +el('invDiscount').value     || 0;
-  const extraKmCost = extraKmRate * extraKm;
-  const extraHrCost = extraHrRate * extraHr;
+  const d       = currentInvDuty || {};
+  const p       = getInvPricing();
+  const cgstPct = p.cgst ?? 2.5;
+  const sgstPct = p.sgst ?? 2.5;
+  const parking     = +el('invParking').value     || 0;
+  const toll        = +el('invToll').value        || 0;
+  const stateTax    = +el('invStateTax').value    || 0;
+  const mcd         = +el('invMcd').value         || 0;
+  const misc        = +el('invMisc').value        || 0;
+  const driverAllow = +el('invDriverAllow').value || 0;
+  const discount    = +el('invDiscount').value    || 0;
   const net         = pkgCost + extraKmCost + extraHrCost + parking + toll + stateTax + mcd + misc + driverAllow - discount;
   const cgst        = net * cgstPct / 100;
   const sgst        = net * sgstPct / 100;
@@ -1051,16 +1104,19 @@ async function generateInvoice() {
   </div>
 
   <div class="pkg-box">
-    <strong>${el('invPkgType').value}</strong>${el('invPkgDesc').value ? ' — ' + el('invPkgDesc').value : ''}
+    <strong>${el('invPkgType').selectedOptions[0].text}</strong>${el('invPkgDesc').value ? ' — ' + el('invPkgDesc').value : ''}
     ${el('invPickupAddr').value ? `<div style="margin-top:6px;font-size:12px;color:#6b7280">📍 Pickup: ${el('invPickupAddr').value}</div>` : ''}
   </div>
 
   <table>
     <thead><tr><th>Description</th><th>Amount</th></tr></thead>
     <tbody>
-      ${trow('Package Cost', pkgCost)}
-      ${extraKmCost ? trow(`Additional KM &nbsp;<span style="font-size:11px;color:#9ca3af">(${extraKm} km × ₹${extraKmRate}/km)</span>`, extraKmCost) : ''}
-      ${extraHrCost ? trow(`Additional Hours &nbsp;<span style="font-size:11px;color:#9ca3af">(${extraHr} hr × ₹${extraHrRate}/hr)</span>`, extraHrCost) : ''}
+      ${isOut
+        ? trow(`Outstation &nbsp;<span style="font-size:11px;color:#9ca3af">(${outActualKm} km × ₹${outPerKmRate}/km)</span>`, pkgCost)
+        : trow('Package Cost', pkgCost)
+      }
+      ${!isOut && extraKmCost ? trow(`Additional KM &nbsp;<span style="font-size:11px;color:#9ca3af">(${extraKm} km × ₹${extraKmRate}/km)</span>`, extraKmCost) : ''}
+      ${!isOut && extraHrCost ? trow(`Additional Hours &nbsp;<span style="font-size:11px;color:#9ca3af">(${extraHr} hr × ₹${extraHrRate}/hr)</span>`, extraHrCost) : ''}
       ${parking   ? trow('Parking', parking) : ''}
       ${toll      ? trow('Toll', toll) : ''}
       ${stateTax  ? trow('State Tax', stateTax) : ''}
