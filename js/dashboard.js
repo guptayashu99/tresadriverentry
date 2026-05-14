@@ -678,6 +678,7 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === tabId));
   if (tabId === 'tabAttendance') renderAttendanceTab();
+  if (tabId === 'tabInvoicing')  { renderInvPricing(); renderInvoicingDuties(); }
 }
 
 // ── Export CSV ─────────────────────────────────────────────────────
@@ -696,6 +697,408 @@ function exportCSV() {
 }
 
 function refreshData() { loadData(); }
+
+// ── Invoicing ───────────────────────────────────────────────────────
+
+const INV_PRICING_KEY = 'invPricing';
+
+const INV_PACKAGES = [
+  { key: 'dayuse',      label: 'Day Use',              desc: '8 hours / 80 kms' },
+  { key: 'airport',     label: 'Airport Transfer',      desc: '' },
+  { key: 'outstationOW',label: 'Outstation One-Way',    desc: '' },
+  { key: 'outstationRT',label: 'Outstation Round-Trip', desc: '' },
+  { key: 'other',       label: 'Other',                 desc: '' },
+];
+
+function getInvPricing() {
+  try { return JSON.parse(localStorage.getItem(INV_PRICING_KEY)) || {}; } catch { return {}; }
+}
+
+function renderInvPricing() {
+  const p = getInvPricing();
+  el('invCgstPct').value = p.cgst ?? 2.5;
+  el('invSgstPct').value = p.sgst ?? 2.5;
+  el('invPricingBody').innerHTML = INV_PACKAGES.map(pkg => `
+    <tr>
+      <td style="font-weight:600">${pkg.label}</td>
+      <td><input type="text"   style="width:100%;font-size:13px;padding:5px 8px" data-pkg="${pkg.key}" data-field="desc"      value="${(p[pkg.key] && p[pkg.key].desc)      ?? pkg.desc}" placeholder="e.g. 8h 80km"></td>
+      <td><input type="number" style="width:100%;font-size:13px;padding:5px 8px" data-pkg="${pkg.key}" data-field="basePrice" value="${(p[pkg.key] && p[pkg.key].basePrice) ?? ''}"       placeholder="0" min="0"></td>
+      <td><input type="number" style="width:100%;font-size:13px;padding:5px 8px" data-pkg="${pkg.key}" data-field="kmRate"    value="${(p[pkg.key] && p[pkg.key].kmRate)    ?? ''}"       placeholder="0" min="0"></td>
+      <td><input type="number" style="width:100%;font-size:13px;padding:5px 8px" data-pkg="${pkg.key}" data-field="hrRate"    value="${(p[pkg.key] && p[pkg.key].hrRate)    ?? ''}"       placeholder="0" min="0"></td>
+    </tr>`).join('');
+
+  // Populate driver filter once
+  const sel = el('invDriverFilter');
+  if (sel.options.length === 1) {
+    CONFIG.DRIVERS.forEach(d => {
+      const o = document.createElement('option');
+      o.value = o.textContent = d;
+      sel.appendChild(o);
+    });
+  }
+}
+
+function saveInvPricing() {
+  const p = getInvPricing();
+  p.cgst = parseFloat(el('invCgstPct').value) || 0;
+  p.sgst = parseFloat(el('invSgstPct').value) || 0;
+  document.querySelectorAll('#invPricingBody input').forEach(inp => {
+    const pkg = inp.dataset.pkg, field = inp.dataset.field;
+    if (!p[pkg]) p[pkg] = {};
+    p[pkg][field] = field === 'desc' ? inp.value : (parseFloat(inp.value) || 0);
+  });
+  localStorage.setItem(INV_PRICING_KEY, JSON.stringify(p));
+  const btn = document.querySelector('[onclick="saveInvPricing()"]');
+  btn.textContent = '✓ Saved'; setTimeout(() => btn.textContent = 'Save Pricing', 1500);
+}
+
+// ── Duties table ────────────────────────────────────────────────────
+
+let invFilteredDuties = [];
+let currentInvDuty   = null;
+
+function renderInvoicingDuties() {
+  const driver = el('invDriverFilter').value;
+  const month  = el('invMonthFilter').value;
+
+  let duties = [...(allDuties || [])];
+  if (driver) duties = duties.filter(d => d['Driver Name'] === driver);
+  if (month)  duties = duties.filter(d => (d['Duty Date'] || '').startsWith(month));
+  duties.sort((a, b) => (b['Duty Date'] || '') > (a['Duty Date'] || '') ? 1 : -1);
+
+  invFilteredDuties = duties;
+  el('invDutiesCount').textContent = `${duties.length} dut${duties.length === 1 ? 'y' : 'ies'}`;
+
+  const tbody = el('invDutiesBody');
+  if (!duties.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-cell"><div class="empty-icon">📋</div>No duties found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = duties.map((d, i) => {
+    const km  = (parseFloat(d['End Km']) || 0) - (parseFloat(d['Start Km']) || 0);
+    const dur = d['Duration (mins)'] ? fmtDuration2(+d['Duration (mins)']) : '—';
+    return `<tr>
+      <td>${d['Duty Date'] || '—'}</td>
+      <td>${d['Driver Name'] || '—'}</td>
+      <td>${d['Vehicle Number'] || '—'}</td>
+      <td>${d['Vendor Duty Number'] || '—'}</td>
+      <td>${d['Duty Type'] || '—'}</td>
+      <td>${km} km</td>
+      <td>${dur}</td>
+      <td>${fmtINR(parseFloat(d['Total Expenses']) || 0)}</td>
+      <td><button class="btn btn-outline" style="padding:5px 12px;font-size:12px;white-space:nowrap" onclick="openInvForm(${i})">Generate Invoice</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Invoice form ─────────────────────────────────────────────────────
+
+const PKG_KEY_MAP = {
+  'Day Use': 'dayuse', 'Airport Transfer': 'airport',
+  'Outstation One-Way': 'outstationOW', 'Outstation Round-Trip': 'outstationRT', 'Other': 'other'
+};
+const DUTY_TYPE_TO_PKG = {
+  'Day Use': 'Day Use', 'Airport Transfer': 'Airport Transfer',
+  'Outstation': 'Outstation One-Way', 'Outstation Round-Trip': 'Outstation Round-Trip'
+};
+
+function openInvForm(idx) {
+  currentInvDuty = invFilteredDuties[idx];
+  const d = currentInvDuty;
+  const p = getInvPricing();
+
+  el('invFormSection').style.display = 'block';
+  setTimeout(() => el('invFormSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+
+  // Invoice number & date
+  const now = new Date();
+  el('invNumber').value = 'TFM' + String(now.getFullYear()).slice(2) +
+    String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+  el('invDate').value = now.toISOString().split('T')[0];
+
+  // Duty reference
+  const km = (parseFloat(d['End Km']) || 0) - (parseFloat(d['Start Km']) || 0);
+  el('invDutyRef').innerHTML = [
+    `<span><strong>Date:</strong> ${d['Duty Date'] || '—'}</span>`,
+    `<span><strong>Driver:</strong> ${d['Driver Name'] || '—'}</span>`,
+    `<span><strong>Vehicle:</strong> ${d['Vehicle Number'] || '—'}</span>`,
+    `<span><strong>Duty No.:</strong> ${d['Vendor Duty Number'] || '—'}</span>`,
+    `<span><strong>Type:</strong> ${d['Duty Type'] || '—'}</span>`,
+    `<span><strong>KM:</strong> ${km} km</span>`,
+    `<span><strong>Duration:</strong> ${d['Duration (mins)'] ? fmtDuration2(+d['Duration (mins)']) : '—'}</span>`,
+  ].join('');
+
+  // Package type from duty type
+  const pkgLabel = DUTY_TYPE_TO_PKG[d['Duty Type']] || 'Day Use';
+  el('invPkgType').value = pkgLabel;
+  const pkgKey = PKG_KEY_MAP[pkgLabel];
+  const pkgData = p[pkgKey] || {};
+
+  el('invPkgDesc').value      = pkgData.desc     || '';
+  el('invPkgCost').value      = pkgData.basePrice || '';
+  el('invExtraKmRate').value  = pkgData.kmRate    || '';
+  el('invExtraHrRate').value  = pkgData.hrRate    || '';
+  el('invExtraKm').value      = '';
+  el('invExtraHr').value      = '';
+
+  // Pre-fill expenses from duty
+  el('invParking').value      = parseFloat(d['Parking'])        || 0;
+  el('invToll').value         = parseFloat(d['Toll'])           || 0;
+  el('invStateTax').value     = parseFloat(d['State Tax'])      || 0;
+  el('invMcd').value          = parseFloat(d['MCD'])            || 0;
+  el('invMisc').value         = parseFloat(d['Miscellaneous'])  || 0;
+  el('invDriverAllow').value  = 0;
+  el('invDiscount').value     = 0;
+  el('invComments').value     = '';
+  el('invCustName').value     = '';
+  el('invCustCompany').value  = '';
+  el('invCustContact').value  = '';
+  el('invCustEmail').value    = '';
+  el('invPickupAddr').value   = '';
+  el('invBillingAddr').value  = '';
+  el('invErrMsg').style.display = 'none';
+
+  updateInvTotal();
+}
+
+function onInvPkgTypeChange() {
+  const p = getInvPricing();
+  const pkgKey = PKG_KEY_MAP[el('invPkgType').value];
+  const pkgData = p[pkgKey] || {};
+  el('invPkgDesc').value     = pkgData.desc     || '';
+  el('invPkgCost').value     = pkgData.basePrice || '';
+  el('invExtraKmRate').value = pkgData.kmRate    || '';
+  el('invExtraHrRate').value = pkgData.hrRate    || '';
+  updateInvTotal();
+}
+
+function closeInvForm() {
+  el('invFormSection').style.display = 'none';
+  currentInvDuty = null;
+}
+
+function updateInvTotal() {
+  const pkgCost     = +el('invPkgCost').value      || 0;
+  const extraKmRate = +el('invExtraKmRate').value   || 0;
+  const extraKm     = +el('invExtraKm').value       || 0;
+  const extraHrRate = +el('invExtraHrRate').value   || 0;
+  const extraHr     = +el('invExtraHr').value       || 0;
+  const parking     = +el('invParking').value       || 0;
+  const toll        = +el('invToll').value          || 0;
+  const stateTax    = +el('invStateTax').value      || 0;
+  const mcd         = +el('invMcd').value           || 0;
+  const misc        = +el('invMisc').value          || 0;
+  const driverAllow = +el('invDriverAllow').value   || 0;
+  const discount    = +el('invDiscount').value      || 0;
+  const p           = getInvPricing();
+  const cgstPct     = p.cgst ?? 2.5;
+  const sgstPct     = p.sgst ?? 2.5;
+
+  const extraKmCost = extraKmRate * extraKm;
+  const extraHrCost = extraHrRate * extraHr;
+  el('invExtraKmCost').value = Math.round(extraKmCost);
+  el('invExtraHrCost').value = Math.round(extraHrCost);
+
+  const net   = pkgCost + extraKmCost + extraHrCost + parking + toll + stateTax + mcd + misc + driverAllow - discount;
+  const cgst  = net * cgstPct / 100;
+  const sgst  = net * sgstPct / 100;
+  const gross = net + cgst + sgst;
+
+  const row = (label, val, cls = '') =>
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px${cls}"><span>${label}</span><span>${fmtINR(val)}</span></div>`;
+
+  el('invSummary').innerHTML = `<div style="max-width:420px;margin-left:auto">
+    ${row('Package Cost', pkgCost)}
+    ${extraKmCost ? row(`Extra KM (${extraKm} km × ₹${extraKmRate})`, extraKmCost) : ''}
+    ${extraHrCost ? row(`Extra Hours (${extraHr} hr × ₹${extraHrRate})`, extraHrCost) : ''}
+    ${parking     ? row('Parking', parking) : ''}
+    ${toll        ? row('Toll', toll) : ''}
+    ${stateTax    ? row('State Tax', stateTax) : ''}
+    ${mcd         ? row('Delhi MCD', mcd) : ''}
+    ${misc        ? row('Miscellaneous', misc) : ''}
+    ${driverAllow ? row('Driver Allowance', driverAllow) : ''}
+    ${discount    ? `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--error)"><span>Discount</span><span>− ${fmtINR(discount)}</span></div>` : ''}
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-weight:600"><span>Net Total</span><span>${fmtINR(net)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-muted)"><span>CGST @ ${cgstPct}%</span><span>${fmtINR(cgst)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-muted)"><span>SGST @ ${sgstPct}%</span><span>${fmtINR(sgst)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:10px 0;font-size:17px;font-weight:700"><span>Gross Total</span><span>${fmtINR(gross)}</span></div>
+  </div>`;
+}
+
+// ── Generate Invoice (print window) ─────────────────────────────────
+
+async function generateInvoice() {
+  const custName = el('invCustName').value.trim();
+  const pkgCost  = +el('invPkgCost').value || 0;
+
+  if (!custName) {
+    el('invErrMsg').textContent = '❌ Customer name is required.';
+    el('invErrMsg').style.display = 'block'; return;
+  }
+  if (pkgCost <= 0) {
+    el('invErrMsg').textContent = '❌ Package Cost is required and must be greater than ₹0.';
+    el('invErrMsg').style.display = 'block'; return;
+  }
+  el('invErrMsg').style.display = 'none';
+
+  const d           = currentInvDuty || {};
+  const p           = getInvPricing();
+  const cgstPct     = p.cgst ?? 2.5;
+  const sgstPct     = p.sgst ?? 2.5;
+  const extraKmRate = +el('invExtraKmRate').value || 0;
+  const extraKm     = +el('invExtraKm').value     || 0;
+  const extraHrRate = +el('invExtraHrRate').value  || 0;
+  const extraHr     = +el('invExtraHr').value      || 0;
+  const parking     = +el('invParking').value      || 0;
+  const toll        = +el('invToll').value         || 0;
+  const stateTax    = +el('invStateTax').value     || 0;
+  const mcd         = +el('invMcd').value          || 0;
+  const misc        = +el('invMisc').value         || 0;
+  const driverAllow = +el('invDriverAllow').value  || 0;
+  const discount    = +el('invDiscount').value     || 0;
+  const extraKmCost = extraKmRate * extraKm;
+  const extraHrCost = extraHrRate * extraHr;
+  const net         = pkgCost + extraKmCost + extraHrCost + parking + toll + stateTax + mcd + misc + driverAllow - discount;
+  const cgst        = net * cgstPct / 100;
+  const sgst        = net * sgstPct / 100;
+  const gross       = net + cgst + sgst;
+  const inr         = n => '₹' + Math.round(n).toLocaleString('en-IN');
+  const today       = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
+  const km          = (parseFloat(d['End Km']) || 0) - (parseFloat(d['Start Km']) || 0);
+
+  const headerUrl = await (async () => {
+    try {
+      const resp = await fetch(new URL('Branding/Payslip-Header.png', location.href).href);
+      const blob = await resp.blob();
+      return await new Promise(res => { const r = new FileReader(); r.onloadend = () => res(r.result); r.readAsDataURL(blob); });
+    } catch { return ''; }
+  })();
+
+  const trow = (label, val, cls = '') =>
+    `<tr class="${cls}"><td>${label}</td><td style="text-align:right;font-weight:500">${inr(val)}</td></tr>`;
+
+  const html = `<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8">
+<title>Invoice – ${el('invNumber').value} – ${custName}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#111;background:#fff}
+  .page{max-width:720px;margin:24px auto;padding:40px;border:1px solid #d1d5db}
+  @media print{body{margin:0}.page{margin:0;border:none;padding:32px;max-width:100%}.no-print{display:none!important}}
+  .print-btn{display:block;margin:0 auto 24px;padding:9px 22px;background:#c9a84c;color:#0d0d0b;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600}
+  .header-img{width:100%;height:auto;display:block;margin-bottom:18px}
+  .inv-meta{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid #c9a84c}
+  .inv-no{font-size:20px;font-weight:700;color:#111}
+  .inv-date{font-size:12px;color:#6b7280;margin-top:3px}
+  .status-badge{display:inline-block;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;letter-spacing:.04em}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:18px}
+  .detail-box{background:#f9fafb;border-radius:6px;padding:14px 16px}
+  .detail-box h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;margin-bottom:10px}
+  .detail-row{display:flex;flex-direction:column;margin-bottom:6px;font-size:13px}
+  .detail-label{font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.04em}
+  .detail-value{font-weight:600;color:#111;margin-top:1px}
+  .pkg-box{background:#f3f4f6;border-radius:6px;padding:12px 16px;margin-bottom:18px;font-size:13px}
+  .pkg-box strong{font-size:14px}
+  table{width:100%;border-collapse:collapse;margin-bottom:4px}
+  th{background:#111;color:#fff;padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+  th:last-child{text-align:right}
+  td{padding:8px 14px;border-bottom:1px solid #f3f4f6;font-size:13px}
+  tr.section-head td{background:#f8fafc;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;border-top:1px solid #e5e7eb}
+  tr.subtotal td{background:#f3f4f6;font-weight:600}
+  tr.deduct td{color:#dc2626}
+  tr.net-row td{font-weight:700;font-size:14px;border-top:2px solid #111}
+  tr.gst-row td{color:#6b7280;font-size:12px}
+  tr.gross-row td{background:#c9a84c;color:#0d0d0b;font-weight:700;font-size:15px;border:none}
+  .comments{font-size:12px;color:#6b7280;margin:12px 0 24px;font-style:italic}
+  .sig-area{display:flex;justify-content:space-between;margin-top:60px}
+  .sig-block{width:44%}
+  .sig-line{border-top:1px solid #374151;margin-top:80px;margin-bottom:6px}
+  .sig-label{font-size:11px;color:#6b7280}
+  .sig-name{font-size:12px;font-weight:600;margin-top:3px}
+  .footer-note{text-align:center;font-size:11px;color:#9ca3af;margin-top:28px;border-top:1px solid #f3f4f6;padding-top:10px}
+  .gst-no{font-size:11px;color:#6b7280;text-align:center;margin-top:4px}
+</style></head><body>
+<div class="page">
+  <button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  ${headerUrl ? `<img src="${headerUrl}" class="header-img" alt="Tresa Fleet Management">` : '<div style="text-align:center;font-size:20px;font-weight:700;color:#c9a84c;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid #c9a84c">TRESA FLEET MANAGEMENT PRIVATE LIMITED</div>'}
+
+  <div class="inv-meta">
+    <div>
+      <div class="inv-no">Invoice No. ${el('invNumber').value || '—'}</div>
+      <div class="inv-date">Date: ${el('invDate').value || today}</div>
+    </div>
+    <span class="status-badge">NOT PAID</span>
+  </div>
+
+  <div class="two-col">
+    <div class="detail-box">
+      <h3>Customer Details</h3>
+      <div class="detail-row"><span class="detail-label">Name</span><span class="detail-value">${custName}</span></div>
+      ${el('invCustCompany').value ? `<div class="detail-row"><span class="detail-label">Company</span><span class="detail-value">${el('invCustCompany').value}</span></div>` : ''}
+      ${el('invCustContact').value ? `<div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${el('invCustContact').value}</span></div>` : ''}
+      ${el('invCustEmail').value   ? `<div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${el('invCustEmail').value}</span></div>` : ''}
+      ${el('invBillingAddr').value ? `<div class="detail-row"><span class="detail-label">Billing Address</span><span class="detail-value">${el('invBillingAddr').value}</span></div>` : ''}
+    </div>
+    <div class="detail-box">
+      <h3>Driver &amp; Vehicle</h3>
+      <div class="detail-row"><span class="detail-label">Driver</span><span class="detail-value">${d['Driver Name'] || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Vehicle</span><span class="detail-value">${d['Vehicle Number'] || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Duty Date</span><span class="detail-value">${d['Duty Date'] || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Vendor Duty No.</span><span class="detail-value">${d['Vendor Duty Number'] || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">KM Driven</span><span class="detail-value">${km} km</span></div>
+      ${d['Duration (mins)'] ? `<div class="detail-row"><span class="detail-label">Duration</span><span class="detail-value">${fmtDuration2(+d['Duration (mins)'])}</span></div>` : ''}
+    </div>
+  </div>
+
+  <div class="pkg-box">
+    <strong>${el('invPkgType').value}</strong>${el('invPkgDesc').value ? ' — ' + el('invPkgDesc').value : ''}
+    ${el('invPickupAddr').value ? `<div style="margin-top:6px;font-size:12px;color:#6b7280">📍 Pickup: ${el('invPickupAddr').value}</div>` : ''}
+  </div>
+
+  <table>
+    <thead><tr><th>Description</th><th>Amount</th></tr></thead>
+    <tbody>
+      ${trow('Package Cost', pkgCost)}
+      ${extraKmCost ? trow(`Additional KM &nbsp;<span style="font-size:11px;color:#9ca3af">(${extraKm} km × ₹${extraKmRate}/km)</span>`, extraKmCost) : ''}
+      ${extraHrCost ? trow(`Additional Hours &nbsp;<span style="font-size:11px;color:#9ca3af">(${extraHr} hr × ₹${extraHrRate}/hr)</span>`, extraHrCost) : ''}
+      ${parking   ? trow('Parking', parking) : ''}
+      ${toll      ? trow('Toll', toll) : ''}
+      ${stateTax  ? trow('State Tax', stateTax) : ''}
+      ${mcd       ? trow('Delhi MCD', mcd) : ''}
+      ${misc      ? trow('Miscellaneous', misc) : ''}
+      ${driverAllow ? trow('Driver Allowance', driverAllow) : ''}
+      ${discount  ? `<tr class="deduct"><td>Discount</td><td style="text-align:right;font-weight:500">− ${inr(discount)}</td></tr>` : ''}
+      <tr class="net-row"><td>Net Total</td><td style="text-align:right">${inr(net)}</td></tr>
+      <tr class="gst-row"><td>CGST @ ${cgstPct}%</td><td style="text-align:right">${inr(cgst)}</td></tr>
+      <tr class="gst-row"><td>SGST @ ${sgstPct}%</td><td style="text-align:right">${inr(sgst)}</td></tr>
+      <tr class="gross-row"><td>GROSS TOTAL</td><td style="text-align:right">${inr(gross)}</td></tr>
+    </tbody>
+  </table>
+
+  ${el('invComments').value ? `<div class="comments">Note: ${el('invComments').value}</div>` : ''}
+
+  <div class="sig-area">
+    <div class="sig-block">
+      <div class="sig-line"></div>
+      <div class="sig-label">Customer Signature</div>
+      <div class="sig-name">${custName}</div>
+    </div>
+    <div class="sig-block" style="text-align:right">
+      <div class="sig-line"></div>
+      <div class="sig-label">Authorised Signatory</div>
+      <div class="sig-name">For Tresa Fleet Management Private Limited</div>
+    </div>
+  </div>
+
+  <div class="footer-note">Thank you for choosing Tresa Fleet. We look forward to serving you again.</div>
+  <div class="gst-no">GST No: 06AALCT8104G1ZB &nbsp;·&nbsp; Generated on ${today}</div>
+</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+}
 
 // ── Helpers ────────────────────────────────────────────────────────
 function el(id) { return document.getElementById(id); }
