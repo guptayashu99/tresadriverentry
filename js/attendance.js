@@ -128,19 +128,26 @@ function haversine(lat1, lon1, lat2, lon2) {
 function onLocationSuccess(pos) {
   lastPosition = pos;
   const { latitude, longitude, accuracy } = pos.coords;
-  const dist = haversine(latitude, longitude, CONFIG.GARAGE_LAT, CONFIG.GARAGE_LNG);
-  atGarage   = dist <= CONFIG.GARAGE_RADIUS_M;
 
-  const distLabel = dist >= 1000
-    ? (dist / 1000).toFixed(1) + ' km'
-    : Math.round(dist) + ' m';
+  let nearestGarage = null;
+  let nearestDist   = Infinity;
+  CONFIG.GARAGES.forEach(g => {
+    const d = haversine(latitude, longitude, g.lat, g.lng);
+    if (d < nearestDist) { nearestDist = d; nearestGarage = g; }
+  });
+
+  atGarage = nearestDist <= CONFIG.GARAGE_RADIUS_M;
+
+  const distLabel = nearestDist >= 1000
+    ? (nearestDist / 1000).toFixed(1) + ' km'
+    : Math.round(nearestDist) + ' m';
 
   if (atGarage) {
-    setLocationUI('✅', '#16a34a', "You're at the garage",
-      `${Math.round(dist)} m from garage · GPS accuracy ±${Math.round(accuracy)} m`);
+    setLocationUI('✅', '#16a34a', `You're at ${nearestGarage.name}`,
+      `${Math.round(nearestDist)} m from ${nearestGarage.name} · GPS accuracy ±${Math.round(accuracy)} m`);
   } else {
-    setLocationUI('❌', '#dc2626', 'Not at the garage',
-      `${distLabel} away — check-in is only allowed at the garage`);
+    setLocationUI('❌', '#dc2626', `Not at a garage`,
+      `${distLabel} from nearest garage (${nearestGarage.name}) — check-in is only allowed at the garage`);
   }
   updateActionButton();
 }
@@ -185,7 +192,7 @@ async function handleAction() {
 
   // Re-verify using the most recent position from watchPosition
   const { latitude, longitude } = lastPosition.coords;
-  const dist = haversine(latitude, longitude, CONFIG.GARAGE_LAT, CONFIG.GARAGE_LNG);
+  const dist = Math.min(...CONFIG.GARAGES.map(g => haversine(latitude, longitude, g.lat, g.lng)));
 
   if (dist > CONFIG.GARAGE_RADIUS_M) {
     alert("You've moved away from the garage. Please be at the garage to check in/out.");

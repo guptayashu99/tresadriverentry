@@ -17,8 +17,10 @@ const CONFIG = {
     'Shreyas Gupta':     '3333'
   },
 
-  // Garage location — attendance check-in/out is only allowed within GARAGE_RADIUS_M metres
-  GARAGE_LAT: 28.58458,
-  GARAGE_LNG: 77.03453,
+  // Garage locations — check-in/out allowed within GARAGE_RADIUS_M of any location
+  GARAGES: [
+    { name: 'Garage - Dwarka Sector 18B', lat: 28.58458,  lng: 77.03453  },
+    { name: 'Garage - Dwarka Sector 13',  lat: 28.596932, lng: 77.033040 },
+  ],
   GARAGE_RADIUS_M: 150
 };
