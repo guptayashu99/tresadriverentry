@@ -152,15 +152,16 @@ function fmtTimeRange(d) {
   const et = d['End Time']   || '';
   const sd = d['Start Date'] || d['Duty Date'] || '';
   const ed = d['End Date']   || d['Duty Date'] || '';
+  const shortDate = s => {
+    try { return new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }); }
+    catch { return s; }
+  };
   if (!st && !et) return '—';
   if (sd && ed && sd !== ed) {
-    const shortDate = s => {
-      try { return new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }); }
-      catch { return s; }
-    };
     return `${st} (${shortDate(sd)}) – ${et} (${shortDate(ed)})`;
   }
-  return `${st || '—'} – ${et || '—'}`;
+  const dateLabel = sd ? `<div style="font-size:11px;color:var(--text-muted)">${shortDate(sd)}</div>` : '';
+  return `${dateLabel}${st || '—'} – ${et || '—'}`;
 }
 
 function fmtDate(s) {

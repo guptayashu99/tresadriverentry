@@ -75,8 +75,9 @@ function calcDutyAllowance(duty) {
   const dutyType  = duty['Duty Type']  || duty.dutyType  || '';
   const dutyDate  = duty['Duty Date']  || duty.dutyDate  || startDate;
 
-  const isSunday = dutyDate
-    ? new Date(dutyDate + 'T00:00:00').getDay() === 0
+  const _dp = dutyDate ? dutyDate.split('-') : [];
+  const isSunday = _dp.length === 3
+    ? new Date(+_dp[0], +_dp[1] - 1, +_dp[2]).getDay() === 0
     : false;
   const sundayBonus = isSunday ? SALARY.SUNDAY_BONUS : 0;
 
