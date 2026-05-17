@@ -48,9 +48,15 @@ function initDash() {
   populateFilter('psDriver',  CONFIG.DRIVERS);
   populateFilter('payDriver',    CONFIG.DRIVERS);
   populateFilter('bulkDelDriver', CONFIG.DRIVERS);
+  populateFilter('attDriver', CONFIG.DRIVERS);
 
   // Default payment date to today
   el('payDate').value = new Date().toISOString().split('T')[0];
+
+  // Default attendance manual entry to now
+  const _now = new Date();
+  el('attDate').value = _now.toISOString().split('T')[0];
+  el('attTime').value = _now.toTimeString().slice(0, 5);
 
   const now = new Date();
   el('fFrom').value    = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
@@ -336,6 +342,72 @@ function renderAttendanceTab() {
       <td>${r['Total Duty Hours'] || (isOpen ? '<span style="color:#f59e0b">In progress</span>' : '—')}</td>
     </tr>`;
   }).join('');
+}
+
+// ── Admin attendance ────────────────────────────────────────────────
+function adminCheckIn() {
+  const driver = el('attDriver').value;
+  const date   = el('attDate').value;
+  const time   = el('attTime').value;
+  const msg    = el('attAdminMsg');
+  if (!driver || !date || !time) { alert('Select driver, date and time.'); return; }
+
+  msg.textContent = 'Saving…';
+  fetch(CONFIG.APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'attendance', driverName: driver, attendanceAction: 'Check-in', date, time })
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (j.success) {
+      msg.innerHTML = `<span style="color:#16a34a">✓ ${driver} checked in at ${time} on ${fmtDate(date)}</span>`;
+      allAttendance.push({ 'Driver Name': driver, 'Date': date, 'In Time': time, 'Out Time': '', 'Total Duty Hours': '' });
+      renderAttendanceTab();
+    } else {
+      msg.innerHTML = `<span style="color:#dc2626">❌ ${j.error || 'Failed to check in'}</span>`;
+    }
+  })
+  .catch(() => { msg.innerHTML = '<span style="color:#dc2626">❌ Network error — check your connection</span>'; });
+}
+
+function adminCheckOut() {
+  const driver = el('attDriver').value;
+  const date   = el('attDate').value;
+  const time   = el('attTime').value;
+  const msg    = el('attAdminMsg');
+  if (!driver || !date || !time) { alert('Select driver, date and time.'); return; }
+
+  const open = allAttendance.find(a =>
+    a['Driver Name'] === driver && a['Date'] === date && !a['Out Time']
+  );
+  if (!open) {
+    msg.innerHTML = `<span style="color:#dc2626">❌ No open check-in found for ${driver} on ${fmtDate(date)}</span>`;
+    return;
+  }
+
+  msg.textContent = 'Saving…';
+  fetch(CONFIG.APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'attendance', driverName: driver, attendanceAction: 'Check-out', date, time })
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (j.success) {
+      const [inH, inM]   = (open['In Time'] || '00:00').split(':').map(Number);
+      const [outH, outM] = time.split(':').map(Number);
+      let diff = (outH * 60 + outM) - (inH * 60 + inM);
+      if (diff < 0) diff += 1440;
+      open['Out Time']        = time;
+      open['Total Duty Hours'] = Math.floor(diff / 60) + 'h ' + (diff % 60) + 'm';
+      msg.innerHTML = `<span style="color:#16a34a">✓ ${driver} checked out at ${time} · ${open['Total Duty Hours']}</span>`;
+      renderAttendanceTab();
+    } else {
+      msg.innerHTML = `<span style="color:#dc2626">❌ ${j.error || 'Failed to check out'}</span>`;
+    }
+  })
+  .catch(() => { msg.innerHTML = '<span style="color:#dc2626">❌ Network error — check your connection</span>'; });
 }
 
 // ── Salary report ──────────────────────────────────────────────────

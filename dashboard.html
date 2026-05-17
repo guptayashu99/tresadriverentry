@@ -168,7 +168,6 @@
             </table>
           </div>
         </div>
-      </div>
 
         <!-- Bulk delete card -->
         <div class="card" style="margin-top:18px;border:1px solid #fca5a5">
@@ -394,6 +393,29 @@
 
       <!-- ── Tab: Attendance ──────────────────────────────────── -->
       <div class="tab-panel" id="tabAttendance">
+
+        <!-- Admin manual check-in / check-out -->
+        <div class="card" style="margin-bottom:18px">
+          <div class="section-title"><span class="section-icon">✏️</span> Manual Check-in / Check-out</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div class="field" style="min-width:160px">
+              <label for="attDriver">Driver</label>
+              <select id="attDriver"><option value="">Select driver…</option></select>
+            </div>
+            <div class="field">
+              <label for="attDate">Date</label>
+              <input type="date" id="attDate">
+            </div>
+            <div class="field">
+              <label for="attTime">Time</label>
+              <input type="time" id="attTime">
+            </div>
+            <button class="btn" style="background:#dcfce7;color:#16a34a;border:1px solid #86efac" onclick="adminCheckIn()">▶ Check In</button>
+            <button class="btn" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5" onclick="adminCheckOut()">⏹ Check Out</button>
+          </div>
+          <div id="attAdminMsg" style="font-size:13px;margin-top:10px;min-height:20px"></div>
+        </div>
+
         <div class="card">
           <div class="section-title">
             <span class="section-icon">📍</span> Attendance Log
