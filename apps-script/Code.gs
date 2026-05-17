@@ -39,6 +39,8 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     if (data.action === 'attendance') return doPostAttendance_(data);
     if (data.action === 'payment')    return doPostPayment_(data);
+    if (data.action === 'editDuty')   return doEditDuty_(data);
+    if (data.action === 'deleteDuty') return doDeleteDuty_(data);
     return doPostDuty_(data);
   } catch (err) {
     return jsonResp_({ success: false, error: err.toString() });
@@ -272,6 +274,87 @@ function doGetPayments_() {
     return obj;
   });
   return jsonResp_({ success: true, data });
+}
+
+function doEditDuty_(data) {
+  const sheet   = getOrCreateSheet_();
+  const rows    = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  const tsIdx   = headers.indexOf('Timestamp');
+  const tz      = Session.getScriptTimeZone();
+
+  let targetRow = -1;
+  for (let i = 1; i < rows.length; i++) {
+    const ts    = rows[i][tsIdx];
+    const tsStr = ts instanceof Date ? Utilities.formatDate(ts, tz, 'yyyy-MM-dd HH:mm:ss') : String(ts);
+    if (tsStr === (data.timestamp || '')) { targetRow = i + 1; break; }
+  }
+  if (targetRow === -1) return jsonResp_({ success: false, error: 'Record not found' });
+
+  const totalKm  = (parseFloat(data.endKm)  || 0) - (parseFloat(data.startKm) || 0);
+  const expenses = ['parking','mcd','toll','stateTax','miscellaneous']
+    .reduce((s, k) => s + (parseFloat(data[k]) || 0), 0);
+
+  let durationMins = '';
+  const startDate = data.startDate || data.dutyDate || '';
+  const endDate   = data.endDate   || data.dutyDate || '';
+  if (startDate && data.startTime && endDate && data.endTime) {
+    const start = new Date(startDate + 'T' + data.startTime);
+    const end   = new Date(endDate   + 'T' + data.endTime);
+    durationMins = Math.round((end - start) / 60000);
+  }
+
+  const newRow = [
+    rows[targetRow - 1][tsIdx],
+    data.driverName       || '',
+    data.vehicleNumber    || '',
+    data.dutyDate         || '',
+    data.vendor           || '',
+    data.vendorDutyNumber || '',
+    data.manualSlip ? 'Yes' : 'No',
+    data.manualSlip ? (data.manualSlipNo || '') : '',
+    data.dutyType         || '',
+    parseFloat(data.startKm) || 0,
+    startDate,
+    data.startTime        || '',
+    parseFloat(data.endKm)   || 0,
+    endDate,
+    data.endTime          || '',
+    totalKm,
+    durationMins,
+    parseFloat(data.parking)       || 0,
+    parseFloat(data.mcd)           || 0,
+    parseFloat(data.toll)          || 0,
+    parseFloat(data.stateTax)      || 0,
+    parseFloat(data.miscellaneous) || 0,
+    expenses,
+    data.filledFuel ? 'Yes' : 'No',
+    data.filledFuel ? (parseFloat(data.fuelAmount)   || 0) : '',
+    data.filledFuel ? (parseFloat(data.fuelLitres)   || 0) : '',
+    data.filledFuel ? (parseFloat(data.fuelOdometer) || '') : ''
+  ];
+
+  sheet.getRange(targetRow, 1, 1, newRow.length).setValues([newRow]);
+  return jsonResp_({ success: true });
+}
+
+function doDeleteDuty_(data) {
+  const sheet   = getOrCreateSheet_();
+  const rows    = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  const tsIdx   = headers.indexOf('Timestamp');
+  const tz      = Session.getScriptTimeZone();
+
+  let targetRow = -1;
+  for (let i = 1; i < rows.length; i++) {
+    const ts    = rows[i][tsIdx];
+    const tsStr = ts instanceof Date ? Utilities.formatDate(ts, tz, 'yyyy-MM-dd HH:mm:ss') : String(ts);
+    if (tsStr === (data.timestamp || '')) { targetRow = i + 1; break; }
+  }
+  if (targetRow === -1) return jsonResp_({ success: false, error: 'Record not found' });
+
+  sheet.deleteRow(targetRow);
+  return jsonResp_({ success: true });
 }
 
 /* ── Helpers ─────────────────────────────────────────────── */

@@ -260,6 +260,8 @@ function renderAnomalyPanel(flagged) {
 }
 
 // ── Duties table ───────────────────────────────────────────────────
+let _renderedDuties = [];   // reference used by edit/delete onclick handlers
+
 const FLAG_STYLE = {
   late:    { bg: '#fef3c7', color: '#92400e', border: '#f59e0b' },
   km_gap:  { bg: '#fee2e2', color: '#991b1b', border: '#dc2626' },
@@ -268,14 +270,15 @@ const FLAG_STYLE = {
 };
 
 function renderDuties(duties) {
+  _renderedDuties = duties;
   el('dutiesCount').textContent = duties.length + ' duties';
   if (!duties.length) {
     el('dutiesBody').innerHTML =
-      '<tr><td colspan="12" class="empty-cell"><div class="empty-icon">📋</div>No duties found</td></tr>';
+      '<tr><td colspan="13" class="empty-cell"><div class="empty-icon">📋</div>No duties found</td></tr>';
     return;
   }
 
-  el('dutiesBody').innerHTML = duties.map(d => {
+  el('dutiesBody').innerHTML = duties.map((d, i) => {
     const a     = calcDutyAllowance(d);
     const exp   = +d['Total Expenses'] || 0;
     const fuel  = d['Filled Fuel'] === 'Yes';
@@ -302,6 +305,10 @@ function renderDuties(duties) {
       <td>${fuel ? `<span class="badge badge-green">⛽ ${fmtINR(d['Fuel Amount'])}</span>` : '—'}</td>
       <td><strong style="color:var(--primary)">${fmtINR(a.totalAllowance)}</strong>${a.isSunday ? '<br><span style="font-size:11px;color:var(--warning)">+₹1k Sun</span>' : ''}</td>
       <td>${flagBadges || '<span style="color:var(--text-muted)">—</span>'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-outline" style="padding:3px 10px;font-size:11px" onclick="openEditModal(_renderedDuties[${i}])">Edit</button>
+        <button class="btn" style="padding:3px 10px;font-size:11px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;margin-left:4px" onclick="deleteDuty(_renderedDuties[${i}]['Timestamp'],_renderedDuties[${i}]['Duty Date']+' – '+_renderedDuties[${i}]['Driver Name'])">Del</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -1227,6 +1234,154 @@ async function generateInvoice() {
   const w = window.open('', '_blank');
   w.document.write(html);
   w.document.close();
+}
+
+// ── Edit / Delete duties ───────────────────────────────────────────
+
+function openEditModal(d) {
+  const existing = document.getElementById('editDutyModal');
+  if (existing) existing.remove();
+
+  const opts = (items, sel) => items.map(v =>
+    `<option value="${v}"${v === sel ? ' selected' : ''}>${v}</option>`).join('');
+  const fld = (label, id, type, val, extra = '') =>
+    `<div class="field"><label>${label}</label><input type="${type}" id="${id}" value="${val}" ${extra}></div>`;
+
+  const modal = document.createElement('div');
+  modal.id = 'editDutyModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+  <div style="background:#fff;border-radius:12px;padding:24px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <h3 style="margin:0;font-size:17px">Edit Duty Record</h3>
+      <button type="button" onclick="closeEditModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#9ca3af;line-height:1">×</button>
+    </div>
+    <div style="font-size:11px;color:#9ca3af;margin-bottom:16px">Submitted: ${d['Timestamp'] || '—'}</div>
+    <input type="hidden" id="editTs" value="${d['Timestamp'] || ''}">
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="field"><label>Driver</label><select id="editDriver">${opts(CONFIG.DRIVERS, d['Driver Name'])}</select></div>
+      <div class="field"><label>Vehicle</label><select id="editVehicle">${opts(CONFIG.VEHICLES, d['Vehicle Number'])}</select></div>
+      ${fld('Duty Date', 'editDutyDate', 'date', d['Duty Date'] || '')}
+      <div class="field"><label>Duty Type</label><select id="editDutyType">${opts(CONFIG.DUTY_TYPES, d['Duty Type'])}</select></div>
+      <div class="field"><label>Vendor</label><select id="editVendor">${opts(CONFIG.VENDORS, d['Vendor'])}</select></div>
+      ${fld('Vendor Duty No.', 'editVendorNo', 'text', d['Vendor Duty Number'] || '')}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+      ${fld('Start Km', 'editStartKm', 'number', d['Start Km'] || 0)}
+      ${fld('Start Date', 'editStartDate', 'date', d['Start Date'] || d['Duty Date'] || '')}
+      ${fld('Start Time', 'editStartTime', 'time', d['Start Time'] || '')}
+      ${fld('End Km', 'editEndKm', 'number', d['End Km'] || 0)}
+      ${fld('End Date', 'editEndDate', 'date', d['End Date'] || d['Duty Date'] || '')}
+      ${fld('End Time', 'editEndTime', 'time', d['End Time'] || '')}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px">
+      ${fld('Parking', 'editParking', 'number', d['Parking'] || 0, 'min=0')}
+      ${fld('MCD', 'editMcd', 'number', d['MCD'] || 0, 'min=0')}
+      ${fld('Toll', 'editToll', 'number', d['Toll'] || 0, 'min=0')}
+      ${fld('State Tax', 'editStateTax', 'number', d['State Tax'] || 0, 'min=0')}
+      ${fld('Misc', 'editMisc', 'number', d['Miscellaneous'] || 0, 'min=0')}
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+        <input type="checkbox" id="editFuelCb" ${d['Filled Fuel'] === 'Yes' ? 'checked' : ''} onchange="toggleEditFuel()">
+        Fuel filled on this duty
+      </label>
+      <div id="editFuelRow" style="display:${d['Filled Fuel'] === 'Yes' ? 'grid' : 'none'};grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:10px">
+        ${fld('Fuel Amount (₹)', 'editFuelAmt', 'number', d['Fuel Amount'] || 0, 'min=0')}
+        ${fld('Fuel Litres', 'editFuelL', 'number', d['Fuel Litres'] || 0, 'min=0')}
+        ${fld('Fuel Odometer', 'editFuelOdo', 'number', d['Fuel Odometer Reading'] || 0, 'min=0')}
+      </div>
+    </div>
+
+    <div id="editErr" class="alert alert-error" style="display:none;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-primary" id="editSaveBtn" onclick="submitEditDuty(event)">Save Changes</button>
+    </div>
+  </div>`;
+
+  modal.addEventListener('click', e => { if (e.target === modal) closeEditModal(); });
+  document.body.appendChild(modal);
+}
+
+function closeEditModal() {
+  const m = document.getElementById('editDutyModal');
+  if (m) m.remove();
+}
+
+function toggleEditFuel() {
+  document.getElementById('editFuelRow').style.display =
+    document.getElementById('editFuelCb').checked ? 'grid' : 'none';
+}
+
+async function submitEditDuty(e) {
+  e.preventDefault();
+  const btn  = document.getElementById('editSaveBtn');
+  const errEl = document.getElementById('editErr');
+  errEl.style.display = 'none';
+
+  const startKm = parseFloat(document.getElementById('editStartKm').value) || 0;
+  const endKm   = parseFloat(document.getElementById('editEndKm').value)   || 0;
+  if (endKm < startKm) {
+    errEl.textContent = 'End Km must be ≥ Start Km'; errEl.style.display = 'block'; return;
+  }
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const fuel = document.getElementById('editFuelCb').checked;
+  const payload = {
+    action:           'editDuty',
+    timestamp:        document.getElementById('editTs').value,
+    driverName:       document.getElementById('editDriver').value,
+    vehicleNumber:    document.getElementById('editVehicle').value,
+    dutyDate:         document.getElementById('editDutyDate').value,
+    dutyType:         document.getElementById('editDutyType').value,
+    vendor:           document.getElementById('editVendor').value,
+    vendorDutyNumber: document.getElementById('editVendorNo').value,
+    startKm, startDate: document.getElementById('editStartDate').value,
+    startTime:        document.getElementById('editStartTime').value,
+    endKm,   endDate:   document.getElementById('editEndDate').value,
+    endTime:          document.getElementById('editEndTime').value,
+    parking:          parseFloat(document.getElementById('editParking').value)  || 0,
+    mcd:              parseFloat(document.getElementById('editMcd').value)      || 0,
+    toll:             parseFloat(document.getElementById('editToll').value)     || 0,
+    stateTax:         parseFloat(document.getElementById('editStateTax').value) || 0,
+    miscellaneous:    parseFloat(document.getElementById('editMisc').value)     || 0,
+    filledFuel: fuel,
+    fuelAmount:  fuel ? (parseFloat(document.getElementById('editFuelAmt').value)  || 0) : null,
+    fuelLitres:  fuel ? (parseFloat(document.getElementById('editFuelL').value)    || 0) : null,
+    fuelOdometer:fuel ? (parseFloat(document.getElementById('editFuelOdo').value)  || 0) : null,
+    manualSlip: false, manualSlipNo: ''
+  };
+
+  try {
+    const res  = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (json.success) { closeEditModal(); await loadData(); }
+    else throw new Error(json.error || 'Unknown error');
+  } catch (err) {
+    errEl.textContent = 'Error: ' + err.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save Changes';
+  }
+}
+
+async function deleteDuty(timestamp, label) {
+  if (!confirm(`Delete duty: ${label}?\n\nThis cannot be undone.`)) return;
+  try {
+    const res  = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'deleteDuty', timestamp })
+    });
+    const json = await res.json();
+    if (json.success) { await loadData(); }
+    else alert('Delete failed: ' + (json.error || 'Unknown error'));
+  } catch (err) { alert('Error: ' + err.message); }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
