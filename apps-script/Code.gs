@@ -39,8 +39,9 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     if (data.action === 'attendance') return doPostAttendance_(data);
     if (data.action === 'payment')    return doPostPayment_(data);
-    if (data.action === 'editDuty')   return doEditDuty_(data);
-    if (data.action === 'deleteDuty') return doDeleteDuty_(data);
+    if (data.action === 'editDuty')        return doEditDuty_(data);
+    if (data.action === 'deleteDuty')      return doDeleteDuty_(data);
+    if (data.action === 'bulkDeleteDuties') return doBulkDeleteDuties_(data);
     return doPostDuty_(data);
   } catch (err) {
     return jsonResp_({ success: false, error: err.toString() });
@@ -336,6 +337,37 @@ function doEditDuty_(data) {
 
   sheet.getRange(targetRow, 1, 1, newRow.length).setValues([newRow]);
   return jsonResp_({ success: true });
+}
+
+function doBulkDeleteDuties_(data) {
+  const sheet     = getOrCreateSheet_();
+  const rows      = sheet.getDataRange().getValues();
+  const headers   = rows[0];
+  const driverIdx = headers.indexOf('Driver Name');
+  const dateIdx   = headers.indexOf('Duty Date');
+  const tz        = Session.getScriptTimeZone();
+
+  const driver   = data.driverName || '';
+  const fromDate = data.fromDate   || '';
+  const toDate   = data.toDate     || '';
+
+  const toDelete = [];
+  for (let i = 1; i < rows.length; i++) {
+    const rowDriver = String(rows[i][driverIdx] || '');
+    let   rowDate   = rows[i][dateIdx];
+    if (rowDate instanceof Date) {
+      rowDate = Utilities.formatDate(rowDate, tz, 'yyyy-MM-dd');
+    } else {
+      rowDate = String(rowDate || '');
+    }
+    if (rowDriver === driver && rowDate >= fromDate && rowDate <= toDate) {
+      toDelete.push(i + 1); // 1-indexed sheet row
+    }
+  }
+
+  // Delete bottom-to-top so row indices don't shift
+  toDelete.reverse().forEach(r => sheet.deleteRow(r));
+  return jsonResp_({ success: true, count: toDelete.length });
 }
 
 function doDeleteDuty_(data) {

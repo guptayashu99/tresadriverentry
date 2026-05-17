@@ -46,7 +46,8 @@ function initDash() {
   populateFilter('fType',     CONFIG.DUTY_TYPES, 'All Types');
   populateFilter('salDriver', CONFIG.DRIVERS,    'All Drivers');
   populateFilter('psDriver',  CONFIG.DRIVERS);
-  populateFilter('payDriver', CONFIG.DRIVERS);
+  populateFilter('payDriver',    CONFIG.DRIVERS);
+  populateFilter('bulkDelDriver', CONFIG.DRIVERS);
 
   // Default payment date to today
   el('payDate').value = new Date().toISOString().split('T')[0];
@@ -1381,6 +1382,45 @@ async function deleteDuty(timestamp, label) {
     const json = await res.json();
     if (json.success) { await loadData(); }
     else alert('Delete failed: ' + (json.error || 'Unknown error'));
+  } catch (err) { alert('Error: ' + err.message); }
+}
+
+async function bulkDeleteDuties() {
+  const driver = el('bulkDelDriver').value;
+  const from   = el('bulkDelFrom').value;
+  const to     = el('bulkDelTo').value;
+
+  if (!driver) { alert('Please select a driver.'); return; }
+  if (!from || !to) { alert('Please select a date range.'); return; }
+  if (from > to) { alert('"From" date must be on or before "To" date.'); return; }
+
+  const matching = allDuties.filter(d => {
+    const dd = d['Duty Date'] || '';
+    return (d['Driver Name'] || '') === driver && dd >= from && dd <= to;
+  });
+
+  if (!matching.length) {
+    alert(`No duties found for ${driver} between ${from} and ${to}.`);
+    return;
+  }
+
+  if (!confirm(
+    `Delete ${matching.length} dut${matching.length === 1 ? 'y' : 'ies'} for ${driver}\n` +
+    `from ${from} to ${to}?\n\nThis cannot be undone.`
+  )) return;
+
+  try {
+    const res  = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'bulkDeleteDuties', driverName: driver, fromDate: from, toDate: to })
+    });
+    const json = await res.json();
+    if (json.success) {
+      alert(`Deleted ${json.count} dut${json.count === 1 ? 'y' : 'ies'}.`);
+      await loadData();
+    } else {
+      alert('Error: ' + (json.error || 'Unknown error'));
+    }
   } catch (err) { alert('Error: ' + err.message); }
 }
 
