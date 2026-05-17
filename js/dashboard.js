@@ -214,7 +214,8 @@ function flagAnomalies(duties) {
     }
 
     // High OT: more than 4 hours (non-Outstation)
-    if (d['Duty Type'] !== 'Outstation') {
+    const _isOut = d['Duty Type'] === 'Outstation' || d['Duty Type'] === 'Outstation Round-Trip';
+    if (!_isOut) {
       const a = calcDutyAllowance(d);
       if (a.overtimeHours > 4) flags.push({ type: 'high_ot', label: `${a.overtimeHours.toFixed(1)}h OT` });
     }
@@ -788,7 +789,7 @@ function renderInvoicingDuties() {
     const km  = (parseFloat(d['End Km']) || 0) - (parseFloat(d['Start Km']) || 0);
     const dur = d['Duration (mins)'] ? fmtDuration2(+d['Duration (mins)']) : '—';
     return `<tr>
-      <td>${d['Duty Date'] || '—'}</td>
+      <td>${fmtDate(d['Duty Date'])}</td>
       <td>${d['Driver Name'] || '—'}</td>
       <td>${d['Vehicle Number'] || '—'}</td>
       <td>${d['Vendor Duty Number'] || '—'}</td>
@@ -804,6 +805,7 @@ function renderInvoicingDuties() {
 // ── Invoice form ─────────────────────────────────────────────────────
 
 const DUTY_TYPE_TO_PKG = {
+  'Hourly Rental':         'hourly',
   'Day Use':               'hourly',
   'Airport Transfer':      'airport',
   'Outstation':            'outstation',
@@ -1241,15 +1243,16 @@ function fmtTimeRange(d) {
   const et = d['End Time']   || '';
   const sd = d['Start Date'] || d['Duty Date'] || '';
   const ed = d['End Date']   || d['Duty Date'] || '';
+  const short = s => {
+    try { return new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day:'2-digit', month:'short' }); }
+    catch { return s; }
+  };
   if (!st && !et) return '—';
   if (sd && ed && sd !== ed) {
-    const short = s => {
-      try { return new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day:'2-digit', month:'short' }); }
-      catch { return s; }
-    };
     return `${st} <span style="font-size:11px;color:var(--text-muted)">${short(sd)}</span> – ${et} <span style="font-size:11px;color:var(--text-muted)">${short(ed)}</span>`;
   }
-  return `${st || '—'} – ${et || '—'}`;
+  const dateLabel = sd ? `<div style="font-size:11px;color:var(--text-muted)">${short(sd)}</div>` : '';
+  return `${dateLabel}${st || '—'} – ${et || '—'}`;
 }
 
 function fmtDuration2(mins) {

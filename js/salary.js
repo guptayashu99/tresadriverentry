@@ -86,7 +86,7 @@ function calcDutyAllowance(duty) {
   let outstationDays = 0;
   let outstationAllowance = 0;
 
-  if (dutyType === 'Outstation') {
+  if (dutyType === 'Outstation' || dutyType === 'Outstation Round-Trip') {
     const dd    = _dayDiff(startDate, endDate);
     const eMins = _toMins(endTime);
     // Number of outstation days:
