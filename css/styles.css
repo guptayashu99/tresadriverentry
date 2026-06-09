@@ -282,6 +282,19 @@ tr:hover td { background: #f9fafb; }
 /* ── Salary report table ─────────────────────────────────────────── */
 .salary-row-total { font-weight: 700; background: #f3f4f6; color: var(--text); }
 
+/* ── Edit modal grids ────────────────────────────────────────────── */
+.modal-grid-2    { display: grid; grid-template-columns: 1fr 1fr;        gap: 12px; margin-bottom: 12px; }
+.modal-grid-3    { display: grid; grid-template-columns: 1fr 1fr 1fr;    gap: 12px; margin-bottom: 12px; }
+.modal-grid-5    { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 12px; }
+.modal-fuel-grid { grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 10px; }
+
+@media (max-width: 600px) {
+  .modal-grid-2    { grid-template-columns: 1fr; }
+  .modal-grid-3    { grid-template-columns: 1fr 1fr; }
+  .modal-grid-5    { grid-template-columns: 1fr 1fr; }
+  .modal-fuel-grid { grid-template-columns: 1fr 1fr; }
+}
+
 /* ── Loading / empty ─────────────────────────────────────────────── */
 .loading-cell, .empty-cell { padding: 48px; text-align: center; color: var(--text-muted); }
 .spinner {
@@ -340,4 +353,37 @@ tr:hover td { background: #f9fafb; }
   .filter-field { width: 100%; }
   .tabs { gap: 2px; }
   .tab  { font-size: 13px; padding: 7px 8px; }
+
+  /* Sticky submit bar */
+  .submit-bar {
+    position: sticky;
+    bottom: 0;
+    margin: 0 -16px;
+    padding: 12px 16px 20px;
+    background: var(--bg);
+    box-shadow: 0 -4px 12px rgba(0,0,0,.08);
+    z-index: 50;
+  }
+
+  /* Nav: stack logo + links vertically, scroll links horizontally */
+  .nav-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .brand-logo { height: 40px; }
+  .nav {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-link {
+    white-space: nowrap;
+    font-size: 13px;
+    padding: 5px 10px;
+  }
 }

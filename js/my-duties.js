@@ -174,7 +174,7 @@ function openMyEditModal(d) {
     <div style="font-size:11px;color:#9ca3af;margin-bottom:16px">Submitted: ${d['Timestamp'] || '—'}</div>
     <input type="hidden" id="myEditTs" value="${d['Timestamp'] || ''}">
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="modal-grid-2">
       <div class="field"><label>Driver</label><input type="text" value="${d['Driver Name'] || ''}" disabled style="background:#f3f4f6;color:var(--text-muted)"></div>
       <div class="field"><label>Vehicle</label><select id="myEditVehicle">${opts(CONFIG.VEHICLES, d['Vehicle Number'])}</select></div>
       ${fld('Duty Date', 'myEditDutyDate', 'date', d['Duty Date'] || '')}
@@ -183,7 +183,7 @@ function openMyEditModal(d) {
       ${fld('Vendor Duty No.', 'myEditVendorNo', 'text', d['Vendor Duty Number'] || '')}
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="modal-grid-3">
       ${fld('Start Km', 'myEditStartKm', 'number', d['Start Km'] || 0)}
       ${fld('Start Date', 'myEditStartDate', 'date', d['Start Date'] || d['Duty Date'] || '')}
       ${fld('Start Time', 'myEditStartTime', 'time', d['Start Time'] || '')}
@@ -192,7 +192,7 @@ function openMyEditModal(d) {
       ${fld('End Time', 'myEditEndTime', 'time', d['End Time'] || '')}
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px">
+    <div class="modal-grid-5">
       ${fld('Parking', 'myEditParking', 'number', d['Parking'] || 0, 'min=0')}
       ${fld('MCD', 'myEditMcd', 'number', d['MCD'] || 0, 'min=0')}
       ${fld('Toll', 'myEditToll', 'number', d['Toll'] || 0, 'min=0')}
@@ -205,7 +205,7 @@ function openMyEditModal(d) {
         <input type="checkbox" id="myEditFuelCb" ${d['Filled Fuel'] === 'Yes' ? 'checked' : ''} onchange="toggleMyEditFuel()">
         Fuel filled on this duty
       </label>
-      <div id="myEditFuelRow" style="display:${d['Filled Fuel'] === 'Yes' ? 'grid' : 'none'};grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:10px">
+      <div id="myEditFuelRow" class="modal-fuel-grid" style="display:${d['Filled Fuel'] === 'Yes' ? 'grid' : 'none'}">
         ${fld('Fuel Amount (₹)', 'myEditFuelAmt', 'number', d['Fuel Amount'] || 0, 'min=0')}
         ${fld('Fuel Litres', 'myEditFuelL', 'number', d['Fuel Litres'] || 0, 'min=0')}
         ${fld('Fuel Odometer', 'myEditFuelOdo', 'number', d['Fuel Odometer Reading'] || 0, 'min=0')}

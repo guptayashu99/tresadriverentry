@@ -60,16 +60,20 @@ function fill(id, items) {
 }
 
 function todayStr() {
-  return new Date().toISOString().split('T')[0];
+  const d = new Date();
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
 }
 
-// Pre-fill start/end datetime to the duty date at 00:00 if not yet set
+// Pre-fill start/end datetime to the duty date at current time if not yet set
 function setDatetimeDefaults(date) {
   if (!date) return;
-  const sd = document.getElementById('startDatetime');
-  const ed = document.getElementById('endDatetime');
-  if (!sd.value) sd.value = date + 'T00:00';
-  if (!ed.value) ed.value = date + 'T00:00';
+  const sd   = document.getElementById('startDatetime');
+  const ed   = document.getElementById('endDatetime');
+  const hhmm = new Date().toTimeString().slice(0, 5);
+  if (!sd.value) sd.value = date + 'T' + hhmm;
+  if (!ed.value) ed.value = date + 'T' + hhmm;
 }
 
 // Split a datetime-local value into { date, time }
@@ -232,11 +236,13 @@ async function handleSubmit(e) {
 
   setLoading(true);
   try {
-    await fetch(CONFIG.APPS_SCRIPT_URL, {
+    const res  = await fetch(CONFIG.APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'Server error');
     showSuccess(payload);
   } catch {
     document.getElementById('errMsg').style.display = 'block';
@@ -284,11 +290,11 @@ function submitAnother() {
   document.getElementById('dutyForm').style.display = 'flex';
   document.getElementById('successBox').style.display = 'none';
   const today = todayStr();
+  const hhmm  = new Date().toTimeString().slice(0, 5);
   document.getElementById('dutyDate').value = today;
-  document.getElementById('startDatetime').value = today + 'T00:00';
-  document.getElementById('endDatetime').value   = today + 'T00:00';
+  document.getElementById('startDatetime').value = today + 'T' + hhmm;
+  document.getElementById('endDatetime').value   = today + 'T' + hhmm;
   document.getElementById('kmSummary').style.display = 'none';
-  document.getElementById('otPreview').style.display = 'none';
   document.getElementById('expTotal').textContent = '₹0';
   setFuel(false);
   setManualSlip(false);

@@ -153,11 +153,23 @@ function doPostAttendance_(data) {
     const inTimeIdx  = headers.indexOf('In Time');
     const outTimeIdx = headers.indexOf('Out Time');
     const totalIdx   = headers.indexOf('Total Duty Hours');
+    const tz         = Session.getScriptTimeZone();
+
+    // Normalise a cell value to a date string (yyyy-MM-dd), handling cases
+    // where Sheets auto-parsed the stored string into a Date object.
+    const toDateStr = v => v instanceof Date
+      ? Utilities.formatDate(v, tz, 'yyyy-MM-dd')
+      : String(v || '');
+
+    // Same for HH:mm time cells.
+    const toTimeStr = v => v instanceof Date
+      ? Utilities.formatDate(v, tz, 'HH:mm')
+      : String(v || '');
 
     let targetRow = -1;
     for (let i = rows.length - 1; i >= 1; i--) {
       if (rows[i][driverIdx] === (data.driverName || '') &&
-          rows[i][dateIdx]   === (data.date       || '') &&
+          toDateStr(rows[i][dateIdx]) === (data.date || '') &&
           !rows[i][outTimeIdx]) {
         targetRow = i + 1; // 1-indexed
         break;
@@ -166,7 +178,7 @@ function doPostAttendance_(data) {
 
     if (targetRow === -1) return jsonResp_({ success: false, error: 'No open check-in found' });
 
-    const inTime  = rows[targetRow - 1][inTimeIdx] || '';
+    const inTime  = toTimeStr(rows[targetRow - 1][inTimeIdx]);
     const outTime = data.time || '';
     let totalHours = '';
     if (inTime && outTime) {
