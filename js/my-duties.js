@@ -273,30 +273,47 @@ async function submitMyEditDuty(e) {
   };
 
   try {
+    console.log('Submitting edit:', payload);
     const res  = await fetch(CONFIG.APPS_SCRIPT_URL, {
       method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     });
+    console.log('Response status:', res.status);
     const json = await res.json();
-    if (json.success) { closeMyEditModal(); await loadMyDuties(currentDriver); }
+    console.log('Response JSON:', json);
+    if (json.success) {
+      closeMyEditModal();
+      await loadMyDuties(currentDriver);
+    }
     else throw new Error(json.error || 'Unknown error');
   } catch (err) {
-    errEl.textContent = 'Error: ' + err.message; errEl.style.display = 'block';
-    btn.disabled = false; btn.textContent = 'Save Changes';
+    console.error('Edit error:', err);
+    errEl.textContent = 'Error: ' + err.message;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Save Changes';
   }
 }
 
 async function deleteMyDuty(timestamp, dutyDate) {
   if (!confirm(`Delete duty on ${fmtDate(dutyDate)}?\n\nThis cannot be undone.`)) return;
   try {
+    console.log('Deleting duty with timestamp:', timestamp);
     const res  = await fetch(CONFIG.APPS_SCRIPT_URL, {
       method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'deleteDuty', timestamp })
     });
+    console.log('Response status:', res.status);
     const json = await res.json();
-    if (json.success) { await loadMyDuties(currentDriver); }
-    else alert('Delete failed: ' + (json.error || 'Unknown error'));
-  } catch (err) { alert('Error: ' + err.message); }
+    console.log('Response JSON:', json);
+    if (json.success) {
+      await loadMyDuties(currentDriver);
+    }
+    else throw new Error(json.error || 'Unknown error');
+  } catch (err) {
+    console.error('Delete error:', err);
+    alert('Error: ' + err.message);
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
