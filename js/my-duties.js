@@ -77,10 +77,12 @@ async function loadMyDuties(driver) {
       .filter(d => (d['Driver Name'] || '') === driver)
       .sort((a, b) => (b['Duty Date'] || '').localeCompare(a['Duty Date'] || ''));
 
+    console.log(`Loaded ${myDuties.length} duties for ${driver}:`, myDuties);
     document.getElementById('loader').style.display  = 'none';
     document.getElementById('content').style.display = 'block';
     renderAll();
-  } catch {
+  } catch (err) {
+    console.error('Load duties error:', err);
     document.getElementById('loader').innerHTML =
       '<div class="alert alert-error">❌ Could not load duties. Check your connection.</div>';
   }
@@ -114,6 +116,7 @@ function renderTable(duties) {
   const ym   = document.getElementById('monthFilter').value;
 
   _myRenderedDuties = duties;
+  console.log(`Rendering ${duties.length} duties:`, duties);
   cnt.textContent = duties.length + ' duties' + (ym ? ' in ' + fmtMonth(ym) : '');
 
   if (!duties.length) {
