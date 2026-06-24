@@ -3,6 +3,7 @@
 const SESSION_KEY = 'myDutiesDriver';
 let myDuties = [];
 let _myRenderedDuties = [];
+let currentDriver = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   const picker = document.getElementById('driverPicker');
@@ -47,12 +48,14 @@ function handleLogin() {
 }
 
 function showAuthenticated(name) {
+  currentDriver = name;
   document.getElementById('loginCard').style.display   = 'none';
   document.getElementById('loggedInBar').style.display = 'block';
   document.getElementById('loggedInName').textContent  = name;
 }
 
 function logout() {
+  currentDriver = null;
   sessionStorage.removeItem(SESSION_KEY);
   document.getElementById('loginCard').style.display   = 'block';
   document.getElementById('loggedInBar').style.display = 'none';
