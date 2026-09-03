@@ -200,6 +200,48 @@ function renderDriverCards(duties) {
 }
 
 // ── Anomaly detection ──────────────────────────────────────────────
+// A duty's start/end as Date objects, or null when the record is incomplete.
+function dutyStart(d) {
+  const dt = new Date((d['Start Date'] || d['Duty Date'] || '') + 'T' + (d['Start Time'] || '') + ':00');
+  return isNaN(dt) ? null : dt;
+}
+function dutyEnd(d) {
+  const dt = new Date((d['End Date'] || d['Duty Date'] || '') + 'T' + (d['End Time'] || '') + ':00');
+  return isNaN(dt) ? null : dt;
+}
+
+const _pad = n => String(n).padStart(2, '0');
+const _dStr = dt => dt.getFullYear() + '-' + _pad(dt.getMonth() + 1) + '-' + _pad(dt.getDate());
+const _tStr = dt => _pad(dt.getHours()) + ':' + _pad(dt.getMinutes());
+
+// Every other duty for the same driver whose time range intersects this one.
+// Overlaps double-count OT, so each is priced using the same OT engine.
+function findOverlaps(d) {
+  const drv = d['Driver Name'] || '';
+  const s = dutyStart(d), e = dutyEnd(d);
+  if (!drv || !s || !e || e <= s) return [];
+
+  // Identify rows by Timestamp, not object identity: flagAnomalies() hands back
+  // copies, so a reference check alone would let a duty match itself.
+  const sameRow = x => x === d || (d['Timestamp'] && x['Timestamp'] === d['Timestamp']);
+
+  return allDuties.reduce((acc, x) => {
+    if (sameRow(x) || (x['Driver Name'] || '') !== drv) return acc;
+    const xs = dutyStart(x), xe = dutyEnd(x);
+    if (!xs || !xe || xe <= xs) return acc;
+    if (xs >= e || s >= xe) return acc;          // no intersection
+
+    const os = new Date(Math.max(s, xs));
+    const oe = new Date(Math.min(e, xe));
+    const mins = Math.round((oe - os) / 60000);
+    if (mins <= 0) return acc;
+
+    const otHours = calcOvertimeHours(_dStr(os), _tStr(os), _dStr(oe), _tStr(oe));
+    acc.push({ other: x, mins, otAmount: Math.round(otHours * SALARY.OT_RATE) });
+    return acc;
+  }, []);
+}
+
 function flagAnomalies(duties) {
   return duties.map(d => {
     const flags = [];
@@ -237,6 +279,19 @@ function flagAnomalies(duties) {
       if (a.overtimeHours > 4) flags.push({ type: 'high_ot', label: `${a.overtimeHours.toFixed(1)}h OT` });
     }
 
+    // Overlapping duty: same driver logged over the same wall-clock time.
+    const overlaps = findOverlaps(d);
+    if (overlaps.length) {
+      const dupOT = overlaps.reduce((t, o) => t + o.otAmount, 0);
+      const mins  = overlaps.reduce((t, o) => t + o.mins, 0);
+      flags.push({
+        type: 'overlap',
+        label: `Overlaps ${overlaps.length > 1 ? overlaps.length + ' duties' : fmtDate(overlaps[0].other['Duty Date'])}`
+             + ` · ${mins}m` + (dupOT ? ` · ₹${dupOT} dup OT` : ''),
+        dupOT
+      });
+    }
+
     // No attendance check-in on duty day (Beta — only shown when attendance data is loaded)
     if (allAttendance.length > 0 && d['Duty Date'] && d['Driver Name']) {
       const hasCheckin = allAttendance.some(a =>
@@ -258,10 +313,17 @@ function renderAnomalyPanel(flagged) {
 
   if (!bad.length) { panel.style.display = 'none'; return; }
 
-  const counts = { late: 0, km_gap: 0, high_ot: 0, no_att: 0 };
+  const counts = { late: 0, km_gap: 0, high_ot: 0, no_att: 0, overlap: 0 };
   bad.forEach(d => d._flags.forEach(f => { if (f.type in counts) counts[f.type]++; }));
 
+  // Each overlapping pair is flagged on both duties, so the ₹ would be counted
+  // twice here — halve it to report the actual salary impact.
+  const dupOT = Math.round(
+    bad.reduce((t, d) => t + d._flags.reduce((u, f) => u + (f.dupOT || 0), 0), 0) / 2
+  );
+
   const parts = [
+    counts.overlap && `🔁 ${counts.overlap} overlapping${dupOT ? ` (₹${dupOT} duplicated OT)` : ''}`,
     counts.late    && `⏰ ${counts.late} late submission${counts.late > 1 ? 's' : ''}`,
     counts.km_gap  && `📉 ${counts.km_gap} km gap${counts.km_gap > 1 ? 's' : ''}`,
     counts.high_ot && `⚡ ${counts.high_ot} high OT`,
@@ -283,7 +345,8 @@ const FLAG_STYLE = {
   late:    { bg: '#fef3c7', color: '#92400e', border: '#f59e0b' },
   km_gap:  { bg: '#fee2e2', color: '#991b1b', border: '#dc2626' },
   high_ot: { bg: '#fef3c7', color: '#92400e', border: '#f59e0b' },
-  no_att:  { bg: '#f3f4f6', color: '#4b5563', border: '#9ca3af' }
+  no_att:  { bg: '#f3f4f6', color: '#4b5563', border: '#9ca3af' },
+  overlap: { bg: '#fee2e2', color: '#991b1b', border: '#dc2626' }
 };
 
 function renderDuties(duties) {
@@ -306,7 +369,7 @@ function renderDuties(duties) {
       return `<span style="display:inline-block;background:${s.bg};color:${s.color};border:1px solid ${s.border};border-radius:10px;font-size:10px;padding:1px 7px;white-space:nowrap;margin:1px">${f.label}</span>`;
     }).join('');
 
-    const rowBg = flags.some(f => f.type === 'km_gap') ? 'background:#fff5f5' :
+    const rowBg = flags.some(f => f.type === 'overlap' || f.type === 'km_gap') ? 'background:#fff5f5' :
                   flags.length                          ? 'background:#fffbeb' : '';
 
     return `<tr${rowBg ? ` style="${rowBg}"` : ''}>

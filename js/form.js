@@ -202,6 +202,50 @@ async function handleSubmit(e) {
     if (!proceed) return;
   }
 
+  // Driver overlap check — the same driver cannot be on two duties at once.
+  // Distinct from the vehicle check above: a driver double-booked across two
+  // different vehicles slips past it, and overlapping time double-pays OT.
+  const dvConflict = existingDuties.find(d => {
+    if (d === conflict) return false;                      // already warned about above
+    if ((d['Driver Name'] || '') !== payload.driverName) return false;
+    const exSD = d['Start Date'] || d['Duty Date'] || '';
+    const exST = d['Start Time'] || '';
+    const exED = d['End Date']   || d['Duty Date'] || '';
+    const exET = d['End Time']   || '';
+    return timesOverlap(startDate, startTime, endDate, endTime, exSD, exST, exED, exET);
+  });
+  if (dvConflict) {
+    const cSD = dvConflict['Start Date'] || dvConflict['Duty Date'] || '';
+    const cST = dvConflict['Start Time'] || '';
+    const cED = dvConflict['End Date']   || dvConflict['Duty Date'] || '';
+    const cET = dvConflict['End Time']   || '';
+
+    // Price the double-counted overtime using the shared salary engine.
+    const os = new Date(Math.max(new Date(startDate + 'T' + startTime), new Date(cSD + 'T' + cST)));
+    const oe = new Date(Math.min(new Date(endDate   + 'T' + endTime),   new Date(cED + 'T' + cET)));
+    const pad  = n => String(n).padStart(2, '0');
+    const dStr = dt => dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate());
+    const tStr = dt => pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+    const mins = Math.round((oe - os) / 60000);
+    const dupOT = Math.round(calcOvertimeHours(dStr(os), tStr(os), dStr(oe), tStr(oe)) * SALARY.OT_RATE);
+
+    const ok = confirm(
+      `⚠️ ${payload.driverName} already has a duty from
+` +
+      `${cSD} ${cST} → ${cED} ${cET}
+` +
+      `(${dvConflict['Vehicle Number'] || '—'}, ${dvConflict['Vendor Duty Number'] || 'no duty no.'})
+
+` +
+      `These overlap by ${mins} minutes` +
+      (dupOT ? `, which would pay ₹${dupOT} of overtime twice.` : '.') +
+      `
+
+Submit anyway?`
+    );
+    if (!ok) return;
+  }
+
   // Km continuity check — start km should not be below vehicle's last recorded end km
   const vehiclePrev = existingDuties
     .filter(d => (d['Vehicle Number'] || '') === payload.vehicleNumber)

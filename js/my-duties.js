@@ -104,13 +104,28 @@ function renderSummary(duties) {
   const km   = duties.reduce((s, d) => s + (+d['Total Km']       || 0), 0);
   const exp  = duties.reduce((s, d) => s + (+d['Total Expenses'] || 0), 0);
   const fuel = duties.reduce((s, d) => s + (+d['Fuel Amount']    || 0), 0);
-  let   alw  = 0;
-  duties.forEach(d => { alw += calcDutyAllowance(d).totalAllowance; });
+  // Break the total out by component so it reconciles with the owner's salary
+  // report, which lists OT, Outstation and Sunday in separate columns.
+  let alw = 0, ot = 0, outst = 0, sun = 0;
+  duties.forEach(d => {
+    const a = calcDutyAllowance(d);
+    alw   += a.totalAllowance;
+    ot    += a.overtimeAmount;
+    outst += a.outstationAllowance;
+    sun   += a.sundayBonus;
+  });
 
   document.getElementById('sDuties').textContent = duties.length;
   document.getElementById('sKm').textContent     = km.toLocaleString('en-IN') + ' km';
   document.getElementById('sExp').textContent    = fmtINR(exp);
   document.getElementById('sAlw').textContent    = fmtINR(alw);
+
+  const parts = [];
+  if (ot)    parts.push('OT ' + fmtINR(ot));
+  if (outst) parts.push('Outstation ' + fmtINR(outst));
+  if (sun)   parts.push('Sunday ' + fmtINR(sun));
+  document.getElementById('sAlwBreak').textContent =
+    parts.length ? parts.join('  ·  ') : 'OT + Outstation + Sunday';
 }
 
 function renderTable(duties) {
