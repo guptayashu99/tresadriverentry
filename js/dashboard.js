@@ -3,6 +3,7 @@
 let allDuties     = [];
 let allAttendance = [];
 let allPayments   = [];
+let allAdvances   = [];
 
 // ── Auth ───────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -47,11 +48,13 @@ function initDash() {
   populateFilter('salDriver', CONFIG.DRIVERS,    'All Drivers');
   populateFilter('psDriver',  CONFIG.DRIVERS);
   populateFilter('payDriver',    CONFIG.DRIVERS);
+  populateFilter('advDriver',    CONFIG.DRIVERS);
   populateFilter('bulkDelDriver', CONFIG.DRIVERS);
   populateFilter('attDriver', CONFIG.DRIVERS);
 
-  // Default payment date to today
+  // Default payment and advance dates to today
   el('payDate').value = new Date().toISOString().split('T')[0];
+  el('advDate').value = new Date().toISOString().split('T')[0];
 
   // Default attendance manual entry to now
   const _now = new Date();
@@ -83,10 +86,11 @@ function populateFilter(id, items) {
 async function loadData() {
   setTableLoading(true);
   try {
-    const [dutiesRes, attRes, payRes] = await Promise.all([
+    const [dutiesRes, attRes, payRes, advRes] = await Promise.all([
       fetch(CONFIG.APPS_SCRIPT_URL),
       fetch(CONFIG.APPS_SCRIPT_URL + '?type=attendance'),
-      fetch(CONFIG.APPS_SCRIPT_URL + '?type=payments')
+      fetch(CONFIG.APPS_SCRIPT_URL + '?type=payments'),
+      fetch(CONFIG.APPS_SCRIPT_URL + '?type=advances')
     ]);
 
     const dutiesText = await dutiesRes.text();
@@ -107,7 +111,13 @@ async function loadData() {
       allPayments = payJson.success ? (payJson.data || []) : [];
     } catch { allPayments = []; }
 
+    try {
+      const advJson = await advRes.json();
+      allAdvances = advJson.success ? (advJson.data || []) : [];
+    } catch { allAdvances = []; }
+
     renderPaymentHistory();
+    renderAdvances();
     applyFilters();
   } catch (err) {
     console.error('Dashboard load error:', err);
@@ -416,15 +426,19 @@ function calcSalaryReport() {
   if (!ym) { alert('Select a month first'); return; }
 
   let html = '';
-  let grandBasic=0, grandOT=0, grandOut=0, grandSun=0, grandGross=0;
+  let grandBasic=0, grandOT=0, grandOut=0, grandSun=0, grandGross=0, grandAdv=0, grandNet=0;
 
   CONFIG.DRIVERS.forEach(name => {
     const s = calcMonthlySalary(allDuties, name, ym);
+    const rec = advanceRecoveryForMonth(allDuties, allAdvances, name, ym);
+    const netPayable = s.grossSalary - rec.recovered;
     grandBasic += s.basicSalary;
     grandOT    += s.overtimePay;
     grandOut   += s.outstationAllowance;
     grandSun   += s.sundayBonus;
     grandGross += s.grossSalary;
+    grandAdv   += rec.recovered;
+    grandNet   += netPayable;
 
     const paid = allPayments.some(p => p['Driver Name'] === name && p['Month'] === ym);
     const statusBadge = paid
@@ -439,6 +453,15 @@ function calcSalaryReport() {
       <td>${fmtINR(s.outstationAllowance)}</td>
       <td>${fmtINR(s.sundayBonus)}</td>
       <td><strong style="color:var(--primary)">${fmtINR(s.grossSalary)}</strong></td>
+      <td>${rec.recovered
+            ? `<span style="color:#dc2626">− ${fmtINR(rec.recovered)}</span>` +
+              (rec.closing > 0
+                ? `<br><small style="color:var(--text-muted)">${fmtINR(rec.closing)} left</small>`
+                : `<br><small style="color:var(--success)">cleared</small>`)
+            : (rec.closing > 0
+                ? `—<br><small style="color:var(--text-muted)">${fmtINR(rec.closing)} left</small>`
+                : '—')}</td>
+      <td><strong>${fmtINR(netPayable)}</strong></td>
       <td>${statusBadge}</td>
     </tr>`;
   });
@@ -450,11 +473,14 @@ function calcSalaryReport() {
     <td>${fmtINR(grandOut)}</td>
     <td>${fmtINR(grandSun)}</td>
     <td><strong>${fmtINR(grandGross)}</strong></td>
+    <td><strong style="color:#dc2626">${grandAdv ? '− ' + fmtINR(grandAdv) : '—'}</strong></td>
+    <td><strong>${fmtINR(grandNet)}</strong></td>
     <td></td>
   </tr>`;
 
   el('salBody').innerHTML = html;
   renderSalaryBreakdown(ym);
+  renderAdvances();
 }
 
 function renderSalaryBreakdown(ym) {
@@ -596,6 +622,185 @@ function renderPaymentHistory() {
   }).join('');
 }
 
+// ── Salary advances ────────────────────────────────────────────────
+async function recordAdvance() {
+  const name   = el('advDriver').value;
+  const amount = parseFloat(el('advAmount').value);
+  const date   = el('advDate').value;
+  const mode   = el('advMode').value;
+  const notes  = el('advNotes').value.trim();
+
+  if (!name)             { alert('Select a driver.'); return; }
+  if (!amount || amount <= 0) { alert('Enter the advance amount.'); return; }
+  if (!date)             { alert('Enter the date the advance was paid.'); return; }
+
+  const btn = el('advBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'advance', driverName: name, amount, advanceDate: date, mode, notes })
+    });
+
+    allAdvances.push({
+      'Timestamp': '', 'Driver Name': name, 'Amount': amount,
+      'Advance Date': date, 'Mode': mode, 'Notes': notes
+    });
+    refreshAdvanceViews();
+    el('advAmount').value = '';
+    el('advNotes').value  = '';
+  } catch {
+    alert('Failed to save. Check your connection.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✓ Record Advance';
+  }
+}
+
+async function deleteAdvance(timestamp, driver, amount) {
+  if (!timestamp) {
+    alert('This advance was just added — refresh the dashboard before deleting it.');
+    return;
+  }
+  if (!confirm(`Delete the ${fmtINR(amount)} advance for ${driver}?\n\nThis cannot be undone and will change their recovery schedule.`)) return;
+
+  try {
+    const r = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'deleteAdvance', timestamp })
+    });
+    const j = await r.json();
+    if (!j.success) { alert('Could not delete: ' + (j.error || 'unknown error')); return; }
+
+    allAdvances = allAdvances.filter(a => a['Timestamp'] !== timestamp);
+    refreshAdvanceViews();
+  } catch {
+    alert('Network error — could not delete.');
+  }
+}
+
+// Re-render the advance tables, and the salary report too when it is already
+// on screen — its Advance Rec. / Net Payable columns depend on this data.
+// calcSalaryReport() re-renders the advance tables itself, so only call one.
+function refreshAdvanceViews() {
+  const reportShowing = el('salMonth').value && !el('salBody').querySelector('.empty-cell');
+  if (reportShowing) calcSalaryReport();
+  else               renderAdvances();
+}
+
+// Outstanding balance per driver + full advance history.
+function renderAdvances() {
+  const ledgers = calcAllAdvanceBalances(allDuties, allAdvances, CONFIG.DRIVERS);
+
+  // ── Balance summary ──
+  const balBody = el('advBalanceBody');
+  if (!ledgers.length) {
+    balBody.innerHTML = '<tr><td colspan="6" class="empty-cell">No advances given yet</td></tr>';
+  } else {
+    let tAdv = 0, tRec = 0, tBal = 0;
+    balBody.innerHTML = ledgers.map(l => {
+      tAdv += l.totalAdvanced; tRec += l.totalRecovered; tBal += l.balance;
+      const pct = l.totalAdvanced ? Math.round(l.totalRecovered / l.totalAdvanced * 100) : 0;
+      const cleared = l.balance <= 0;
+      const badge = cleared
+        ? '<span class="badge badge-green">✓ Cleared</span>'
+        : `<span style="background:#fef3c7;color:#92400e;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">Recovering</span>`;
+      const rowId = 'advSched_' + l.driver.replace(/\W/g, '');
+      return `<tr>
+        <td><strong>${l.driver}</strong></td>
+        <td>${fmtINR(l.totalAdvanced)}</td>
+        <td style="color:var(--success)">${fmtINR(l.totalRecovered)}</td>
+        <td><strong style="color:${cleared ? 'var(--success)' : '#dc2626'};font-size:15px">${fmtINR(l.balance)}</strong></td>
+        <td style="min-width:140px">
+          <div style="background:#e5e7eb;border-radius:6px;height:8px;overflow:hidden">
+            <div style="background:${cleared ? '#16a34a' : '#c9a84c'};height:100%;width:${pct}%"></div>
+          </div>
+          <small style="color:var(--text-muted)">${pct}% recovered</small>
+        </td>
+        <td>${badge}
+          <button class="btn btn-outline" style="display:block;margin-top:6px;padding:3px 10px;font-size:11px"
+                  onclick="toggleSchedule('${rowId}')">View schedule</button></td>
+      </tr>
+      <tr id="${rowId}" style="display:none"><td colspan="6" style="background:var(--bg);padding:12px">
+        ${scheduleTable(l)}
+      </td></tr>`;
+    }).join('') + `<tr class="salary-row-total">
+      <td><strong>TOTAL</strong></td>
+      <td><strong>${fmtINR(tAdv)}</strong></td>
+      <td><strong style="color:var(--success)">${fmtINR(tRec)}</strong></td>
+      <td><strong style="color:#dc2626;font-size:15px">${fmtINR(tBal)}</strong></td>
+      <td></td><td></td>
+    </tr>`;
+  }
+
+  // ── Advance history ──
+  const histBody = el('advanceBody');
+  if (!allAdvances.length) {
+    histBody.innerHTML = '<tr><td colspan="6" class="empty-cell">No advances recorded yet</td></tr>';
+    return;
+  }
+  const sorted = [...allAdvances].sort((a, b) =>
+    (b['Advance Date'] || '').localeCompare(a['Advance Date'] || '')
+  );
+  histBody.innerHTML = sorted.map(a => `<tr>
+    <td>${fmtDate(a['Advance Date'])}</td>
+    <td>${a['Driver Name'] || '—'}</td>
+    <td><strong>${fmtINR(a['Amount'])}</strong></td>
+    <td>${a['Mode'] || '—'}</td>
+    <td style="font-size:12px;color:var(--text-muted)">${a['Notes'] || '—'}</td>
+    <td><button class="btn" style="padding:3px 10px;font-size:11px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5"
+          onclick="deleteAdvance('${a['Timestamp'] || ''}', ${JSON.stringify(a['Driver Name'] || '').replace(/"/g, '&quot;')}, ${+a['Amount'] || 0})">Delete</button></td>
+  </tr>`).join('');
+}
+
+// Month-by-month recovery table for one driver.
+function scheduleTable(l) {
+  const monthLabel = ym => {
+    const [y, m] = ym.split('-');
+    return new Date(+y, +m - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+  };
+  // Trim trailing months where nothing was advanced or recovered — the closing
+  // balance is unchanged through them, so they add only noise.
+  let rows = l.schedule.slice();
+  while (rows.length > 1) {
+    const last = rows[rows.length - 1];
+    if (last.advanced || last.recovered) break;
+    rows.pop();
+  }
+
+  return `<div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">
+      Recovery schedule — ${l.driver}
+    </div>
+    <div class="table-scroll"><table style="font-size:13px">
+      <thead><tr>
+        <th>Month</th><th>Opening</th><th>New Advance</th>
+        <th>Allowances Earned</th><th>Recovered</th><th>Closing Balance</th>
+      </tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td>${monthLabel(r.month)}</td>
+        <td>${fmtINR(r.opening)}</td>
+        <td>${r.advanced ? fmtINR(r.advanced) : '—'}</td>
+        <td>${fmtINR(r.allowances)}</td>
+        <td style="color:var(--success)">${r.recovered ? fmtINR(r.recovered) : '—'}</td>
+        <td><strong>${fmtINR(r.closing)}</strong></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    ${l.balance > 0
+      ? `<div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
+           Carrying <strong style="color:#dc2626">${fmtINR(l.balance)}</strong> forward — recovers automatically as allowances are earned.
+         </div>`
+      : `<div style="margin-top:8px;font-size:12px;color:var(--success)">✓ Fully recovered.</div>`}`;
+}
+
+function toggleSchedule(id) {
+  const row = document.getElementById(id);
+  if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+
 // ── Payslip ────────────────────────────────────────────────────────
 async function generatePayslip() {
   const name = el('psDriver').value;
@@ -608,7 +813,12 @@ async function generatePayslip() {
   const dedChallan  = parseFloat(el('dedChallan').value)  || 0;
   const dedFine     = parseFloat(el('dedFine').value)     || 0;
   const dedExpense  = parseFloat(el('dedExpense').value)  || 0;
-  const deductions  = dedAccident + dedChallan + dedFine + dedExpense;
+
+  // Advance recovery — drawn only from allowances, never from basic salary.
+  const rec         = advanceRecoveryForMonth(allDuties, allAdvances, name, ym);
+  const advRecovery = rec.recovered;
+
+  const deductions  = dedAccident + dedChallan + dedFine + dedExpense + advRecovery;
 
   const s          = calcMonthlySalary(allDuties, name, ym);
   const totalAllow = s.overtimePay + s.outstationAllowance + s.sundayBonus;
@@ -672,6 +882,8 @@ async function generatePayslip() {
   .sig-label{font-size:11px;color:#6b7280}
   .sig-name{font-size:12px;font-weight:600;margin-top:3px}
   .footer-note{text-align:center;font-size:10px;color:#9ca3af;margin-top:28px;border-top:1px solid #f3f4f6;padding-top:10px}
+  .adv-note{margin-top:16px;padding:10px 14px;background:#fdf8ed;border:1px solid #ecd9a4;border-radius:6px;font-size:11px;color:#7a5e1a}
+  .adv-sub{margin-top:4px;font-size:10px;color:#9c7f3e}
 </style>
 </head>
 <body>
@@ -721,11 +933,20 @@ async function generatePayslip() {
       ${dedChallan  ? row('Challan',           dedChallan,  'deduct') : ''}
       ${dedFine     ? row('Fine',              dedFine,     'deduct') : ''}
       ${dedExpense  ? row('Invalid Expenses',  dedExpense,  'deduct') : ''}
+      ${advRecovery ? row('Salary Advance Recovery', advRecovery, 'deduct') : ''}
       ${!deductions ? `<tr class="deduct"><td>No deductions</td><td>—</td></tr>` : ''}
       ${deductions  ? row('Total Deductions',  deductions,  'subtotal') : ''}
       ${row('Net Salary Payable', netSalary, 'net')}
     </tbody>
   </table>
+
+  ${(advRecovery || rec.closing) ? `<div class="adv-note">
+    <strong>Salary Advance</strong> &nbsp;·&nbsp;
+    Opening balance ${inr(rec.opening)}${rec.advanced ? ` &nbsp;·&nbsp; New advance ${inr(rec.advanced)}` : ''}
+    &nbsp;·&nbsp; Recovered this month ${inr(advRecovery)}
+    &nbsp;·&nbsp; <strong>Balance carried forward ${inr(rec.closing)}</strong>
+    <div class="adv-sub">Advances are recovered only from allowances (overtime, outstation and Sunday). Basic salary is never deducted.</div>
+  </div>` : ''}
 
   <div class="sig-area">
     <div class="sig-block">

@@ -155,3 +155,124 @@ function fmtDuration(mins) {
 function fmtINR(n) {
   return '₹' + Math.round(n).toLocaleString('en-IN');
 }
+
+// ── Salary advances ────────────────────────────────────────────────
+// An advance is recovered ONLY from allowances (overtime + outstation +
+// Sunday bonus). Basic salary is never touched. Recovery runs at 100% of
+// whatever allowances the driver earns, starting in the month the advance
+// was taken, oldest advance first, until the balance clears.
+
+// The slice of a month's salary an advance can be recovered from.
+function recoverableAllowance(monthlySalary) {
+  return monthlySalary.overtimePay
+       + monthlySalary.outstationAllowance
+       + monthlySalary.sundayBonus;
+}
+
+function _monthOf(dateStr) {
+  return (dateStr || '').slice(0, 7);
+}
+
+function _nextMonth(ym) {
+  let [y, m] = ym.split('-').map(Number);
+  if (++m > 12) { m = 1; y++; }
+  return y + '-' + String(m).padStart(2, '0');
+}
+
+function _thisMonth() {
+  const n = new Date();
+  return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+}
+
+// Normalise raw Advances sheet rows into a sorted, clean list for one driver.
+function _driverAdvances(advances, driverName) {
+  return (advances || [])
+    .filter(a => (a['Driver Name'] || a.driverName || '') === driverName)
+    .map(a => ({
+      timestamp: a['Timestamp']     || '',
+      date:      a['Advance Date']  || a.advanceDate || '',
+      amount:    parseFloat(a['Amount'] !== undefined ? a['Amount'] : a.amount) || 0,
+      mode:      a['Mode']  || '',
+      notes:     a['Notes'] || ''
+    }))
+    .filter(a => a.amount > 0 && a.date)
+    .sort((x, y) => x.date.localeCompare(y.date));
+}
+
+// Build the month-by-month recovery ledger for one driver.
+// Returns totals plus a `monthly` map keyed by 'YYYY-MM' so the salary report
+// and payslip can look up exactly what was recovered in a given month.
+function calcAdvanceLedger(duties, advances, driverName, upToMonth) {
+  const mine = _driverAdvances(advances, driverName);
+
+  const ledger = {
+    driver: driverName,
+    advances: mine,
+    totalAdvanced: 0,
+    totalRecovered: 0,
+    balance: 0,
+    schedule: [],
+    monthly: {}
+  };
+  if (!mine.length) return ledger;
+
+  ledger.totalAdvanced = mine.reduce((s, a) => s + a.amount, 0);
+
+  // Outstanding amount per advance, drawn down oldest-first (FIFO).
+  const remaining  = mine.map(a => a.amount);
+  const startMonth = _monthOf(mine[0].date);
+  const target     = upToMonth || _thisMonth();
+  const endMonth   = target >= startMonth ? target : startMonth;
+
+  let ym = startMonth;
+  for (let guard = 0; ym <= endMonth && guard < 600; guard++, ym = _nextMonth(ym)) {
+    // Every advance taken on or before this month is now recoverable.
+    const outstanding = mine.reduce(
+      (s, a, i) => s + (_monthOf(a.date) <= ym ? remaining[i] : 0), 0
+    );
+    const advancedThisMonth = mine.reduce(
+      (s, a) => s + (_monthOf(a.date) === ym ? a.amount : 0), 0
+    );
+
+    const allowances = recoverableAllowance(calcMonthlySalary(duties, driverName, ym));
+    const recovered  = Math.min(allowances, outstanding);
+
+    // Draw down oldest advance first.
+    let toApply = recovered;
+    mine.forEach((a, i) => {
+      if (toApply <= 0 || _monthOf(a.date) > ym) return;
+      const take = Math.min(remaining[i], toApply);
+      remaining[i] -= take;
+      toApply      -= take;
+    });
+
+    ledger.totalRecovered += recovered;
+
+    const row = {
+      month: ym,
+      opening: outstanding - advancedThisMonth,
+      advanced: advancedThisMonth,
+      allowances,
+      recovered,
+      closing: outstanding - recovered
+    };
+    ledger.schedule.push(row);
+    ledger.monthly[ym] = row;
+  }
+
+  ledger.balance = ledger.totalAdvanced - ledger.totalRecovered;
+  return ledger;
+}
+
+// What gets deducted from one driver's payslip for a given month.
+function advanceRecoveryForMonth(duties, advances, driverName, ym) {
+  const row = calcAdvanceLedger(duties, advances, driverName, ym).monthly[ym];
+  return row || { month: ym, opening: 0, advanced: 0, allowances: 0, recovered: 0, closing: 0 };
+}
+
+// Outstanding balances for every driver who has ever taken an advance.
+function calcAllAdvanceBalances(duties, advances, drivers, upToMonth) {
+  return drivers
+    .map(d => calcAdvanceLedger(duties, advances, d, upToMonth))
+    .filter(l => l.totalAdvanced > 0);
+}

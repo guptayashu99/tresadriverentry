@@ -12,6 +12,7 @@
 const SHEET_NAME            = 'Duties';
 const ATTENDANCE_SHEET_NAME = 'Attendance';
 const PAYMENTS_SHEET_NAME   = 'Payments';
+const ADVANCES_SHEET_NAME   = 'Advances';
 const OWNER_EMAIL           = 'guptayashu99@gmail.com';
 
 // Column headers – order must match appendRow() below
@@ -32,6 +33,12 @@ const PAYMENT_HEADERS = [
   'Timestamp', 'Driver Name', 'Month', 'Amount', 'Payment Date', 'Mode', 'Notes'
 ];
 
+// Salary advances — recovered only from allowances (OT + Outstation + Sunday),
+// never from basic salary. Recovery schedule is derived on the client.
+const ADVANCE_HEADERS = [
+  'Timestamp', 'Driver Name', 'Amount', 'Advance Date', 'Mode', 'Notes'
+];
+
 /* ────────────────────────────────────────────────────────── */
 
 function doPost(e) {
@@ -39,6 +46,8 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     if (data.action === 'attendance') return doPostAttendance_(data);
     if (data.action === 'payment')    return doPostPayment_(data);
+    if (data.action === 'advance')       return doPostAdvance_(data);
+    if (data.action === 'deleteAdvance') return doDeleteAdvance_(data);
     if (data.action === 'editDuty')        return doEditDuty_(data);
     if (data.action === 'deleteDuty')      return doDeleteDuty_(data);
     if (data.action === 'bulkDeleteDuties') return doBulkDeleteDuties_(data);
@@ -132,6 +141,38 @@ function doPostPayment_(data) {
   return jsonResp_({ success: true });
 }
 
+function doPostAdvance_(data) {
+  const sheet = getOrCreateAdvancesSheet_();
+  sheet.appendRow([
+    new Date(),
+    data.driverName   || '',
+    parseFloat(data.amount) || 0,
+    data.advanceDate  || '',
+    data.mode         || '',
+    data.notes        || ''
+  ]);
+  return jsonResp_({ success: true });
+}
+
+function doDeleteAdvance_(data) {
+  const sheet   = getOrCreateAdvancesSheet_();
+  const rows    = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  const tsIdx   = headers.indexOf('Timestamp');
+  const tz      = Session.getScriptTimeZone();
+
+  let targetRow = -1;
+  for (let i = 1; i < rows.length; i++) {
+    const ts    = rows[i][tsIdx];
+    const tsStr = ts instanceof Date ? Utilities.formatDate(ts, tz, 'yyyy-MM-dd HH:mm:ss') : String(ts);
+    if (tsStr === (data.timestamp || '')) { targetRow = i + 1; break; }
+  }
+  if (targetRow === -1) return jsonResp_({ success: false, error: 'Advance not found' });
+
+  sheet.deleteRow(targetRow);
+  return jsonResp_({ success: true });
+}
+
 function doPostAttendance_(data) {
   const sheet = getOrCreateAttendanceSheet_();
 
@@ -203,6 +244,7 @@ function doGet(e) {
     const type = (e && e.parameter && e.parameter.type) || 'duties';
     if (type === 'attendance') return doGetAttendance_();
     if (type === 'payments')   return doGetPayments_();
+    if (type === 'advances')   return doGetAdvances_();
     return doGetDuties_();
   } catch (err) {
     return jsonResp_({ success: false, error: err.toString() });
@@ -268,6 +310,29 @@ function doGetAttendance_() {
 
 function doGetPayments_() {
   const sheet = getOrCreatePaymentsSheet_();
+  if (sheet.getLastRow() <= 1) return jsonResp_({ success: true, data: [] });
+
+  const rows    = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  const tz      = Session.getScriptTimeZone();
+  const data    = rows.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => {
+      let v = row[i];
+      if (v instanceof Date) {
+        v = h === 'Timestamp'
+          ? Utilities.formatDate(v, tz, 'yyyy-MM-dd HH:mm:ss')
+          : Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+      }
+      obj[h] = (v === null || v === undefined) ? '' : v;
+    });
+    return obj;
+  });
+  return jsonResp_({ success: true, data });
+}
+
+function doGetAdvances_() {
+  const sheet = getOrCreateAdvancesSheet_();
   if (sheet.getLastRow() <= 1) return jsonResp_({ success: true, data: [] });
 
   const rows    = sheet.getDataRange().getValues();
@@ -456,6 +521,21 @@ function getOrCreatePaymentsSheet_() {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(PAYMENT_HEADERS);
     const hdr = sheet.getRange(1, 1, 1, PAYMENT_HEADERS.length);
+    hdr.setBackground('#1e3a8a').setFontColor('#ffffff').setFontWeight('bold').setWrap(false);
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidth(1, 160);
+    sheet.setColumnWidth(2, 160);
+  }
+  return sheet;
+}
+
+function getOrCreateAdvancesSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(ADVANCES_SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(ADVANCES_SHEET_NAME);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(ADVANCE_HEADERS);
+    const hdr = sheet.getRange(1, 1, 1, ADVANCE_HEADERS.length);
     hdr.setBackground('#1e3a8a').setFontColor('#ffffff').setFontWeight('bold').setWrap(false);
     sheet.setFrozenRows(1);
     sheet.setColumnWidth(1, 160);

@@ -221,11 +221,99 @@
                   <th>Outstation</th>
                   <th>Sunday Bonus</th>
                   <th>Gross Salary</th>
+                  <th>Advance Rec.</th>
+                  <th>Net Payable</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody id="salBody">
-                <tr><td colspan="7" class="empty-cell">Select a month and click Calculate</td></tr>
+                <tr><td colspan="10" class="empty-cell">Select a month and click Calculate</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Salary advance -->
+        <div class="card" style="margin-bottom:18px">
+          <div class="section-title"><span class="section-icon">💸</span> Give Salary Advance</div>
+
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;background:var(--warning-light);padding:10px 14px;border-radius:var(--r)">
+            <strong>Recovery rule:</strong> An advance is recovered only from <strong>allowances</strong> — overtime, outstation and Sunday bonus.
+            <strong>Basic salary is never deducted.</strong> Recovery starts in the month the advance is paid and runs at 100% of allowances earned, oldest advance first, until the balance clears.
+          </div>
+
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+            <div class="field" style="min-width:200px">
+              <label for="advDriver">Driver</label>
+              <select id="advDriver"><option value="">Select driver…</option></select>
+            </div>
+            <div class="field" style="min-width:150px">
+              <label for="advAmount">Advance Amount (₹)</label>
+              <input type="number" id="advAmount" placeholder="0" min="0">
+            </div>
+            <div class="field" style="min-width:160px">
+              <label for="advDate">Date Paid</label>
+              <input type="date" id="advDate">
+            </div>
+            <div class="field" style="min-width:160px">
+              <label for="advMode">Payment Mode</label>
+              <select id="advMode">
+                <option value="Cash">Cash</option>
+                <option value="UPI">UPI</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cheque">Cheque</option>
+              </select>
+            </div>
+            <div class="field" style="min-width:200px;flex:1">
+              <label for="advNotes">Reason / Notes</label>
+              <input type="text" id="advNotes" placeholder="Optional">
+            </div>
+          </div>
+          <button id="advBtn" class="btn btn-primary" onclick="recordAdvance()">✓ Record Advance</button>
+        </div>
+
+        <!-- Advance balances -->
+        <div class="card" style="margin-bottom:18px">
+          <div class="section-title"><span class="section-icon">⚖️</span> Advance Recovery Balances</div>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+            Outstanding advance still to be recovered from each driver, up to and including the current month.
+          </p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Driver</th>
+                  <th>Total Advanced</th>
+                  <th>Recovered So Far</th>
+                  <th>Balance Outstanding</th>
+                  <th>Progress</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="advBalanceBody">
+                <tr><td colspan="6" class="empty-cell">No advances given yet</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Advance history -->
+        <div class="card" style="margin-bottom:18px">
+          <div class="section-title"><span class="section-icon">📜</span> Advance History</div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date Paid</th>
+                  <th>Driver</th>
+                  <th>Amount</th>
+                  <th>Mode</th>
+                  <th>Notes</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="advanceBody">
+                <tr><td colspan="6" class="empty-cell">No advances recorded yet</td></tr>
               </tbody>
             </table>
           </div>
